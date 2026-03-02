@@ -8,7 +8,6 @@ import { useEffect, useState } from "react";
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import { LearningEngineService } from "@/lib/services/learning-engine";
-import { ConceptMemoryState } from "@/lib/types/learning";
 
 interface ProgressStats {
   totalConcepts: number;
@@ -36,7 +35,7 @@ export default function ProgressMasteryScreen() {
       expert: 0,
     },
   });
-  const [loading, setLoading] = useState(true);
+
 
   useEffect(() => {
     loadProgressStats();
@@ -44,8 +43,6 @@ export default function ProgressMasteryScreen() {
 
   const loadProgressStats = async () => {
     try {
-      setLoading(true);
-
       // Get all memory states
       const stmConcepts = await LearningEngineService.getConceptsInMemory("short_term");
       const ltmConcepts = await LearningEngineService.getConceptsInMemory("long_term");
@@ -91,8 +88,6 @@ export default function ProgressMasteryScreen() {
       });
     } catch (error) {
       console.error("Error loading progress stats:", error);
-    } finally {
-      setLoading(false);
     }
   };
 

@@ -12,7 +12,7 @@ import { useColors } from "@/hooks/use-colors";
 import { AITutorService } from "@/lib/services/ai-tutor";
 import { LearningEngineService } from "@/lib/services/learning-engine";
 import { CONCEPT_MAP } from "@/lib/data/sample-concepts";
-import { StudentMentalModel, LearningInteraction } from "@/lib/types/learning";
+import { StudentMentalModel } from "@/lib/types/learning";
 import * as Haptics from "expo-haptics";
 
 interface ChatMessage {
@@ -36,6 +36,7 @@ export default function TutorChatScreen() {
 
   useEffect(() => {
     initializeChat();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conceptId]);
 
   const initializeChat = async () => {

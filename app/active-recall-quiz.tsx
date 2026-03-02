@@ -11,7 +11,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import { DeepTutorIntegrationService } from "@/lib/services/deeptutor-integration";
 import { LearningEngineService } from "@/lib/services/learning-engine";
-import { QuizQuestion, ConceptMemoryState, QuizAttempt } from "@/lib/types/learning";
+import { QuizQuestion, ConceptMemoryState } from "@/lib/types/learning";
 import * as Haptics from "expo-haptics";
 
 interface QuizState {
@@ -46,6 +46,7 @@ export default function ActiveRecallQuizScreen() {
 
   useEffect(() => {
     loadQuestions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conceptIds]);
 
   const loadQuestions = async () => {
@@ -139,7 +140,6 @@ export default function ActiveRecallQuizScreen() {
         const state = await LearningEngineService.getMemoryState(conceptId);
         if (state) {
           // Quality score: 5 = excellent, 3 = good, 1 = poor
-          const quality = finalScore >= 80 ? 5 : finalScore >= 60 ? 3 : 1;
 
           await LearningEngineService.processQuizAttempt(
             conceptId,

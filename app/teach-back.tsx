@@ -5,7 +5,7 @@
  */
 
 import { ScrollView, Text, View, TouchableOpacity, TextInput, ActivityIndicator } from "react-native";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useLocalSearchParams } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";

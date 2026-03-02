@@ -4,7 +4,7 @@
  * Shows consolidation progress and spaced repetition schedule
  */
 
-import { ScrollView, Text, View, TouchableOpacity, FlatList } from "react-native";
+import { ScrollView, Text, View, TouchableOpacity } from "react-native";
 import { useEffect, useState } from "react";
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
@@ -29,7 +29,7 @@ export default function MemoryDashboardScreen() {
     averageRetention: 0,
     readyForReview: [],
   });
-  const [loading, setLoading] = useState(true);
+
   const [selectedTab, setSelectedTab] = useState<"stm" | "ltm" | "ready">("stm");
 
   useEffect(() => {
@@ -38,8 +38,6 @@ export default function MemoryDashboardScreen() {
 
   const loadMemoryStats = async () => {
     try {
-      setLoading(true);
-
       // Get all memory states
       const stmConcepts = await LearningEngineService.getConceptsInMemory("short_term");
       const ltmConcepts = await LearningEngineService.getConceptsInMemory("long_term");
@@ -66,8 +64,6 @@ export default function MemoryDashboardScreen() {
       });
     } catch (error) {
       console.error("Error loading memory stats:", error);
-    } finally {
-      setLoading(false);
     }
   };
 

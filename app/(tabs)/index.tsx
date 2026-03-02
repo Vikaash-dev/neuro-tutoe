@@ -3,12 +3,12 @@
  * Central hub for learning activities, progress tracking, and recommendations
  */
 
-import { ScrollView, Text, View, TouchableOpacity, FlatList } from "react-native";
+import { ScrollView, Text, View, TouchableOpacity } from "react-native";
 import { useEffect, useState } from "react";
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import { LearningEngineService } from "@/lib/services/learning-engine";
-import { ConceptMemoryState, LearningProgress, Concept } from "@/lib/types/learning";
+import { ConceptMemoryState, Concept } from "@/lib/types/learning";
 import * as Haptics from "expo-haptics";
 
 interface DashboardData {
@@ -30,7 +30,7 @@ export default function HomeScreen() {
     readyForReview: [],
     recommendedTopic: null,
   });
-  const [loading, setLoading] = useState(true);
+
 
   useEffect(() => {
     loadDashboardData();
@@ -38,7 +38,6 @@ export default function HomeScreen() {
 
   const loadDashboardData = async () => {
     try {
-      setLoading(true);
       // TODO: Load actual data from learning engine
       // For now, show placeholder data
       const readyForReview = await LearningEngineService.getConceptsReadyForReview();
@@ -53,8 +52,6 @@ export default function HomeScreen() {
       });
     } catch (error) {
       console.error("Error loading dashboard data:", error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -116,7 +113,7 @@ export default function HomeScreen() {
               style={{ backgroundColor: colors.surface }}
             >
               <View className="flex-row justify-between items-center mb-3">
-                <Text className="text-sm text-muted">Today's Progress</Text>
+                <Text className="text-sm text-muted">Today&apos;s Progress</Text>
                 <Text className="text-sm font-semibold text-foreground">
                   {dashboardData.todayProgress}%
                 </Text>

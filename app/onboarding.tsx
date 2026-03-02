@@ -80,7 +80,7 @@ export default function OnboardingScreen() {
         <View className="p-4 border-b" style={{ borderBottomColor: colors.border }}>
           <Text className="text-2xl font-bold text-foreground">Welcome to NeuroTutor</Text>
           <Text className="text-sm text-muted mt-1">
-            Step {state.step} of 4 - Let's personalize your learning
+            Step {state.step} of 4 - Let&apos;s personalize your learning
           </Text>
         </View>
 
@@ -160,7 +160,7 @@ export default function OnboardingScreen() {
                 style={{ backgroundColor: colors.surface }}
               >
                 <Text className="text-lg font-semibold text-foreground mb-2">
-                  What's your learning depth preference?
+                  What&apos;s your learning depth preference?
                 </Text>
                 <Text className="text-sm text-muted">
                   This helps us adjust the complexity and detail of explanations.
@@ -262,8 +262,8 @@ export default function OnboardingScreen() {
                           : colors.surface,
                     }}
                   >
-                    <Text className="text-base font-semibold text-foreground">{pref.title}</Text>
-                    <Text className="text-sm text-muted mt-1">{pref.description}</Text>
+                <Text className="text-base font-semibold text-foreground">{pref.title}</Text>
+                <Text className="text-sm text-muted mt-1">{pref.description}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -311,10 +311,10 @@ export default function OnboardingScreen() {
                 }}
               >
                 <Text className="text-sm font-semibold text-foreground mb-2">
-                  ✨ You're all set!
+                  ✨ You&apos;re all set!
                 </Text>
                 <Text className="text-sm text-muted leading-relaxed">
-                  Your personalized learning profile is ready. Let's start your journey to superunderstanding!
+                  Your personalized learning profile is ready. Let&apos;s start your journey to superunderstanding!
                 </Text>
               </View>
             </>

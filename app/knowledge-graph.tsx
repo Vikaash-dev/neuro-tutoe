@@ -4,7 +4,7 @@
  * Shows prerequisites, related concepts, and skill transfer opportunities
  */
 
-import { ScrollView, Text, View, TouchableOpacity, Dimensions } from "react-native";
+import { ScrollView, Text, View, TouchableOpacity } from "react-native";
 import { useEffect, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -39,6 +39,7 @@ export default function KnowledgeGraphScreen() {
 
   useEffect(() => {
     loadGraphData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conceptId]);
 
   const loadGraphData = async () => {
