@@ -191,3 +191,38 @@
 - [ ] Documentation update
 - [ ] Create deployment guide
 - [ ] Final checkpoint and publish
+
+
+## CRITICAL ISSUES TO FIX
+
+### Navigation & Routing
+- [ ] Fix tab bar navigation - buttons not working properly
+- [ ] Fix screen routing between all tabs
+- [ ] Ensure deep linking works correctly
+- [ ] Fix navigation stack issues
+
+### Button & Interaction Issues
+- [ ] Fix "Start New Learning Session" button
+- [ ] Fix all quiz buttons (submit, next, etc)
+- [ ] Fix teach-back input and submission
+- [ ] Fix topic selection buttons
+- [ ] Fix settings toggle switches
+- [ ] Fix achievement unlock animations
+
+### Deployment Issues
+- [ ] Fix pnpm dependency conflicts
+- [ ] Remove unused/conflicting packages
+- [ ] Fix Docker build errors
+- [ ] Ensure package.json is clean and minimal
+
+### Architecture Issues
+- [ ] Simplify screen components - too many features
+- [ ] Remove mock data and use real AsyncStorage
+- [ ] Fix API integration issues
+- [ ] Ensure all services are properly exported
+
+### Testing & Validation
+- [ ] Run end-to-end tests on all screens
+- [ ] Validate button clicks work
+- [ ] Test navigation flow
+- [ ] Test data persistence

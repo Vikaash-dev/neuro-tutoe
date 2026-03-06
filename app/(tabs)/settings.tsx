@@ -3,9 +3,8 @@
  * User preferences, notifications, spaced repetition customization, and data management
  */
 
-import { ScrollView, Text, View, TouchableOpacity, Switch } from "react-native";
+import { ScrollView, Text, View, TouchableOpacity, Switch, Platform } from "react-native";
 import { useState } from "react";
-import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
@@ -24,7 +23,6 @@ interface SettingsState {
 
 export default function SettingsScreen() {
   const colors = useColors();
-  const router = useRouter();
   const [settings, setSettings] = useState<SettingsState>({
     notificationsEnabled: true,
     dailyReminder: true,
@@ -37,7 +35,9 @@ export default function SettingsScreen() {
   });
 
   const toggleSetting = (key: keyof SettingsState) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
     setSettings((prev) => ({
       ...prev,
       [key]: !prev[key],
@@ -45,12 +45,16 @@ export default function SettingsScreen() {
   };
 
   const handleExportData = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
     // TODO: Implement data export
   };
 
   const handleClearData = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    if (Platform.OS !== "web") {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    }
     // TODO: Implement data clearing with confirmation
   };
 

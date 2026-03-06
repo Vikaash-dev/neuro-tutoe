@@ -3,7 +3,7 @@
  * Display unlocked badges, milestones, and gamification progress
  */
 
-import { ScrollView, Text, View, TouchableOpacity, FlatList } from "react-native";
+import { ScrollView, Text, View, TouchableOpacity } from "react-native";
 import { useState } from "react";
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";

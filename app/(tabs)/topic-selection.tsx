@@ -4,12 +4,11 @@
  * Shows prerequisites and current mastery progress
  */
 
-import { ScrollView, Text, View, TouchableOpacity, TextInput, FlatList } from "react-native";
-import { useEffect, useState } from "react";
+import { ScrollView, Text, View, TouchableOpacity, TextInput, FlatList, Platform } from "react-native";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
-import { LearningEngineService } from "@/lib/services/learning-engine";
 import * as Haptics from "expo-haptics";
 import { MaterialIcons } from "@expo/vector-icons";
 
@@ -89,15 +88,25 @@ export default function TopicSelectionScreen() {
   const router = useRouter();
   const [searchText, setSearchText] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
-  const [topics, setTopics] = useState<Topic[]>(TOPICS);
   const [filteredTopics, setFilteredTopics] = useState<Topic[]>(TOPICS);
 
-  useEffect(() => {
-    filterTopics();
-  }, [searchText, selectedCategory]);
+  const getDifficultyColor = useCallback((difficulty: string) => {
+    switch (difficulty) {
+      case "beginner":
+        return colors.success;
+      case "intermediate":
+        return colors.warning;
+      case "advanced":
+        return colors.error;
+      case "expert":
+        return colors.primary;
+      default:
+        return colors.muted;
+    }
+  }, [colors]);
 
-  const filterTopics = () => {
-    let filtered = topics;
+  const filterTopics = useCallback(() => {
+    let filtered = TOPICS;
 
     // Filter by category
     if (selectedCategory !== "All") {
@@ -114,32 +123,23 @@ export default function TopicSelectionScreen() {
     }
 
     setFilteredTopics(filtered);
-  };
+  }, [searchText, selectedCategory]);
 
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case "beginner":
-        return colors.success;
-      case "intermediate":
-        return colors.warning;
-      case "advanced":
-        return colors.error;
-      case "expert":
-        return colors.primary;
-      default:
-        return colors.muted;
+  useEffect(() => {
+    filterTopics();
+  }, [filterTopics]);
+
+  const handleTopicSelect = useCallback((topic: Topic) => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-  };
-
-  const handleTopicSelect = (topic: Topic) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push({
       pathname: "/tutor-chat",
       params: { conceptId: topic.id },
     });
-  };
+  }, [router]);
 
-  const renderTopicCard = ({ item }: { item: Topic }) => (
+  const renderTopicCard = useCallback(({ item }: { item: Topic }) => (
     <TouchableOpacity
       onPress={() => handleTopicSelect(item)}
       style={{ marginBottom: 12 }}
@@ -198,7 +198,7 @@ export default function TopicSelectionScreen() {
         </View>
       </View>
     </TouchableOpacity>
-  );
+  ), [colors, getDifficultyColor, handleTopicSelect]);
 
   return (
     <ScreenContainer className="p-0">

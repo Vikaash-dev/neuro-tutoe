@@ -4,7 +4,7 @@
  * Implements DeepTutor's multi-agent problem solving
  */
 
-import { ScrollView, Text, View, TouchableOpacity, TextInput, ActivityIndicator } from "react-native";
+import { ScrollView, Text, View, TouchableOpacity, TextInput, ActivityIndicator, Platform } from "react-native";
 import { useEffect, useState, useRef } from "react";
 import { useLocalSearchParams } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -74,7 +74,9 @@ export default function TutorChatScreen() {
     if (!inputText.trim() || !concept || !mentalModel) return;
 
     try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      if (Platform.OS !== "web") {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
       setLoading(true);
 
       // Add user message
@@ -116,7 +118,9 @@ export default function TutorChatScreen() {
       }, 100);
     } catch (error) {
       console.error("Error sending message:", error);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      if (Platform.OS !== "web") {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
     } finally {
       setLoading(false);
     }
@@ -143,7 +147,9 @@ export default function TutorChatScreen() {
   return (
     <ScreenContainer className="bg-background flex-1" edges={["top", "left", "right", "bottom"]}>
       <View className="flex-1 flex-col">
-        {/* Head        <View className="border-b p-4" style={{ borderColor: colors.border }}>      <Text className="text-2xl font-bold text-foreground">{concept.name}</Text>
+        {/* Header */}
+        <View className="border-b p-4" style={{ borderColor: colors.border }}>
+          <Text className="text-2xl font-bold text-foreground">{concept.name}</Text>
           <Text className="text-sm text-muted mt-1">{concept.difficulty} level</Text>
         </View>
 
