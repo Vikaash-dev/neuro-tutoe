@@ -22,9 +22,9 @@ export default function LoginScreen() {
   useEffect(() => {
     // If already authenticated, redirect to home
     if (isAuthenticated && user) {
-      router.replace("/(tabs)");
+      router.replace("/");
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, router]);
 
   const handleLogin = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -141,7 +141,6 @@ function FeatureItem({
   description: string;
   color: string;
 }) {
-  const colors = useColors();
   return (
     <View className="flex-row gap-3">
       <View

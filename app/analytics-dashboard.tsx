@@ -3,14 +3,11 @@
  * Detailed learning progress, mastery trends, and performance metrics
  */
 
-import { ScrollView, Text, View, Dimensions } from "react-native";
-import { useState, useEffect } from "react";
+import { ScrollView, Text, View } from "react-native";
+import { useState } from "react";
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
-import { LearningEngineService } from "@/lib/services/learning-engine";
 import { MaterialIcons } from "@expo/vector-icons";
-
-const SCREEN_WIDTH = Dimensions.get("window").width;
 
 interface AnalyticsData {
   totalConceptsLearned: number;
@@ -24,11 +21,11 @@ interface AnalyticsData {
 
 export default function AnalyticsDashboardScreen() {
   const colors = useColors();
-  const [analytics, setAnalytics] = useState<AnalyticsData>({
+  const [analytics] = useState<AnalyticsData>({
     totalConceptsLearned: 12,
     masteredConcepts: 8,
     currentStreak: 7,
-    totalStudyTime: 14400, // 4 hours in seconds
+    totalStudyTime: 14400,
     averageMastery: 72,
     weeklyProgress: [45, 52, 48, 65, 72, 68, 75],
     masteryDistribution: [
@@ -132,7 +129,7 @@ export default function AnalyticsDashboardScreen() {
               {analytics.weeklyProgress.map((value, idx) => {
                 const maxHeight = 160;
                 const barHeight = (value / 100) * maxHeight;
-                const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+                const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
                 return (
                   <View key={idx} className="flex-1 items-center">
                     <View
@@ -157,7 +154,7 @@ export default function AnalyticsDashboardScreen() {
           <Text className="text-lg font-semibold text-foreground mb-4">Mastery Distribution</Text>
           <View className="gap-3">
             {analytics.masteryDistribution.map((item, idx) => {
-              const colors_array = [colors.warning, colors.primary, colors.success, colors.primary];
+              const colorsArray = [colors.warning, colors.primary, colors.success, colors.primary];
               const percentage = (item.count / analytics.totalConceptsLearned) * 100;
               return (
                 <View key={idx}>
@@ -175,7 +172,7 @@ export default function AnalyticsDashboardScreen() {
                       style={{
                         height: "100%",
                         width: `${percentage}%`,
-                        backgroundColor: colors_array[idx],
+                        backgroundColor: colorsArray[idx],
                       }}
                     />
                   </View>
@@ -246,7 +243,7 @@ function InsightCard({
   description: string;
   color: string;
 }) {
-  const colors = useColors();
+  useColors();
   return (
     <View
       className="rounded-xl p-3 flex-row gap-3"
