@@ -1,17 +1,40 @@
 /**
  * AI Tutor Service
- * Handles communication with AI backend for Feynman-style teaching
- * Implements DeepTutor's multi-agent problem solving approach
+ * Handles communication with AI backend for Feynman-style teaching.
+ * Implements DeepTutor's multi-agent problem solving approach.
+ *
+ * Security (Sprint 0): All LLM calls go through the backend server.
+ * The Gemini API key stored in AsyncStorage is forwarded via the
+ * X-Gemini-API-Key header to the server, which makes the actual
+ * Gemini API call. The key is never sent directly from the browser
+ * to Google's API.
  */
 
 import { Concept, AITutorResponse, StudentMentalModel, ConceptExplanation } from "@/lib/types/learning";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 /**
  * AI Tutor Service
- * Communicates with backend LLM service (Gemini via Manus server)
+ * Communicates with backend LLM service (server-side Gemini proxy)
  */
 export class AITutorService {
   private static readonly API_BASE = process.env.EXPO_PUBLIC_API_BASE || "http://127.0.0.1:3000";
+
+  /**
+   * Build request headers, including the Gemini API key forwarded server-side.
+   * The server uses this key to call the Gemini API — the key never goes
+   * directly from the client to Google.
+   */
+  private static async buildHeaders(): Promise<Record<string, string>> {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    try {
+      const apiKey = await AsyncStorage.getItem("GEMINI_API_KEY");
+      if (apiKey) headers["X-Gemini-API-Key"] = apiKey;
+    } catch {
+      // AsyncStorage not available (web/test) — server will use env key
+    }
+    return headers;
+  }
 
   /**
    * Generate Feynman-style simple explanation for a concept
@@ -24,7 +47,7 @@ export class AITutorService {
     try {
       const response = await fetch(`${this.API_BASE}/api/ai/explain-simple`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await this.buildHeaders(),
         body: JSON.stringify({
           conceptName: concept.name,
           description: concept.description,
@@ -64,7 +87,7 @@ export class AITutorService {
     try {
       const response = await fetch(`${this.API_BASE}/api/ai/analyze-explanation`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await this.buildHeaders(),
         body: JSON.stringify({
           conceptId,
           studentExplanation,
@@ -100,7 +123,7 @@ export class AITutorService {
     try {
       const response = await fetch(`${this.API_BASE}/api/ai/follow-up-questions`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await this.buildHeaders(),
         body: JSON.stringify({
           conceptId,
           conceptName: concept.name,
@@ -133,7 +156,7 @@ export class AITutorService {
     try {
       const response = await fetch(`${this.API_BASE}/api/ai/generate-quiz`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await this.buildHeaders(),
         body: JSON.stringify({
           conceptIds,
           masteryLevels,
@@ -170,7 +193,7 @@ export class AITutorService {
     try {
       const response = await fetch(`${this.API_BASE}/api/ai/evaluate-answer`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await this.buildHeaders(),
         body: JSON.stringify({
           questionId,
           userAnswer,
@@ -205,7 +228,7 @@ export class AITutorService {
     try {
       const response = await fetch(`${this.API_BASE}/api/ai/step-by-step-solution`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await this.buildHeaders(),
         body: JSON.stringify({
           problem,
           conceptId,
@@ -239,7 +262,7 @@ export class AITutorService {
     try {
       const response = await fetch(`${this.API_BASE}/api/ai/correct-misconception`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await this.buildHeaders(),
         body: JSON.stringify({
           misconception,
           correctConcept: {
@@ -275,7 +298,7 @@ export class AITutorService {
     try {
       const response = await fetch(`${this.API_BASE}/api/ai/concept-connections`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await this.buildHeaders(),
         body: JSON.stringify({
           conceptName,
           conceptDescription,
@@ -304,7 +327,7 @@ export class AITutorService {
     try {
       const response = await fetch(`${this.API_BASE}/api/ai/adaptive-response`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await this.buildHeaders(),
         body: JSON.stringify({
           studentQuestion,
           conceptId,
