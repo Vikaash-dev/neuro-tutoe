@@ -58,6 +58,16 @@ const PII_PATTERNS: RegExp[] = [
   /\b(?:\d{1,3}\.){3}\d{1,3}\b/g,           // IP addresses
 ];
 
+/** Heuristic: returns true when the text contains a causal "why" question
+ *  but NOT negative forms like "why don't/doesn't/won't/can't" etc.
+ *  Extracted from SessionAnalyser.analyse() for clarity. */
+function isCausalWhyQuestion(text: string): boolean {
+  return (
+    /\bwhy\b/.test(text) &&
+    !/\bwhy\s+(don'?t|doesn'?t|won'?t|can'?t|couldn'?t|isn'?t|aren'?t|haven'?t|hasn'?t)\b/.test(text)
+  );
+}
+
 /** SWE tool names that are irrelevant to pedagogy — stripped in cleaning */
 const SWE_TOOL_NAMES = new Set([
   "bash", "git", "npm", "pip", "file_editor", "browser", "execute_command",
@@ -210,10 +220,7 @@ export class SessionAnalyser {
       inferredIntent = "conceptual understanding";
     } else if (lowerText.includes("how do i") || lowerText.includes("step by step")) {
       inferredIntent = "procedural practice";
-    } else if (
-      /\bwhy\b/.test(lowerText) &&
-      !/\bwhy\s+(don'?t|doesn'?t|won'?t|can'?t|couldn'?t|isn'?t|aren'?t)\b/.test(lowerText)
-    ) {
+    } else if (isCausalWhyQuestion(lowerText)) {
       inferredIntent = "causal reasoning";
     } else if (lowerText.includes("difference between") || lowerText.includes("compare")) {
       inferredIntent = "comparative analysis";

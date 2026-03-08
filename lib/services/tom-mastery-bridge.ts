@@ -107,8 +107,8 @@ export class TomMasteryBridge {
     const affectAdjustedMastery = Math.max(0, rawMastery * (1 - afPenalty));
 
     // ---- Step 2: build rationale parts ------------------------------------
-    const rationaleparts: string[] = [];
-    rationaleparts.push(
+    const rationaleParts: string[] = [];
+    rationaleParts.push(
       `raw mastery=${rawMastery.toFixed(2)}; affect=${affectSignal}; adjusted=${affectAdjustedMastery.toFixed(2)}`
     );
 
@@ -137,11 +137,11 @@ export class TomMasteryBridge {
         domain
       );
       finalMode = "explainer";
-      rationaleparts.push(
+      rationaleParts.push(
         `→ analogy fallback (analogyAffinity=true, domain="${domain}")`
       );
     } else {
-      rationaleparts.push(`→ ${selection.action.type} (${selection.rationale})`);
+      rationaleParts.push(`→ ${selection.action.type} (${selection.rationale})`);
     }
 
     // ---- Step 5: check Ranedeer profile for verbosity preference ----------
@@ -149,11 +149,11 @@ export class TomMasteryBridge {
       tomProfile.communicationPreferences.verbosity === "concise" &&
       finalAction.type === "explain_concept"
     ) {
-      rationaleparts.push("→ concise mode (student prefers brevity)");
+      rationaleParts.push("→ concise mode (student prefers brevity)");
     }
 
     // ---- Step 6: compose human-readable rationale -------------------------
-    const rationale = rationaleparts.join("; ");
+    const rationale = rationaleParts.join("; ");
 
     return {
       studentId,

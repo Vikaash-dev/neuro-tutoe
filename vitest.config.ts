@@ -7,12 +7,15 @@
  *
  * Key problem solved: the root tsconfig.json extends "expo/tsconfig.base",
  * which vitest/esbuild cannot resolve when expo is absent. We bypass this by
- * supplying an inline `tsconfigRaw` object directly to esbuild, skipping
+ * supplying an inline `tsconfigRaw` JSON string directly to esbuild, skipping
  * file-based tsconfig resolution entirely.
+ *
+ * IMPORTANT: `tsconfigRaw` MUST be a JSON *string*, not an object.
+ * Vite's `transformWithEsbuild` only skips `loadTsconfigJsonForFile` when
+ * `typeof tsconfigRaw === "string"` (see vite/src/node/plugins/esbuild.ts).
  */
 
-// eslint-disable-next-line import/no-default-export
-export default {
+const config = {
   test: {
     environment: "node",
     include: ["**/*.{test,spec}.{ts,tsx}", "tests/**/*.{test,spec}.{ts,tsx}"],
@@ -50,3 +53,5 @@ export default {
     }),
   },
 };
+
+export default config;
