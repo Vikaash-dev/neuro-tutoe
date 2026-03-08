@@ -5,6 +5,7 @@
  */
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { randomUUID } from "crypto";
 
 export interface ExamPaper {
   id: string;
@@ -86,7 +87,7 @@ export class ExamQuestionMimicService {
     const avgDifficulty = this.estimateDifficulty(content);
 
     const paper: ExamPaper = {
-      id: `exam_${Date.now()}`,
+      id: randomUUID(),
       name,
       content,
       uploadedAt: Date.now(),
