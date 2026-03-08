@@ -149,6 +149,12 @@ export class WebSearchService {
             "Machine learning is a branch of artificial intelligence that focuses on building applications that learn from data...",
           url: "https://www.ibm.com/cloud/learn/machine-learning",
         },
+        {
+          title: "A Survey of Machine Learning Methods",
+          snippet:
+            "This paper provides a comprehensive survey of machine learning methods and their applications...",
+          url: "https://arxiv.org/abs/2001.00001",
+        },
       ],
     };
 

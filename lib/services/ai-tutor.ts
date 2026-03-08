@@ -1,7 +1,13 @@
 /**
  * AI Tutor Service
- * Handles communication with AI backend for Feynman-style teaching
- * Implements DeepTutor's multi-agent problem solving approach
+ * Handles communication with AI backend for Feynman-style teaching.
+ * Implements DeepTutor's multi-agent problem solving approach.
+ *
+ * Security (Sprint 0): All LLM calls go through the backend server.
+ * The Gemini API key stored in AsyncStorage is forwarded via the
+ * X-Gemini-API-Key header to the server, which makes the actual
+ * Gemini API call. The key is never sent directly from the browser
+ * to Google's API.
  */
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -9,20 +15,29 @@ import { Concept, AITutorResponse, StudentMentalModel, ConceptExplanation } from
 
 /**
  * AI Tutor Service
- * Communicates with backend LLM service (Gemini via server proxy)
+ * Communicates with backend LLM service (server-side Gemini proxy)
  */
 export class AITutorService {
   private static readonly API_BASE = process.env.EXPO_PUBLIC_API_BASE || "http://127.0.0.1:3000";
 
-  /** Read the Gemini API key stored by the user and return it as a header map. */
+  /**
+   * Build request headers, including the Gemini API key forwarded server-side.
+   * The server uses this key to call the Gemini API — the key never goes
+   * directly from the client to Google.
+   */
   private static async apiKeyHeaders(): Promise<Record<string, string>> {
-    const key = (await AsyncStorage.getItem("GEMINI_API_KEY")) ?? "";
-    return key ? { "x-gemini-api-key": key } : {};
+    try {
+      const apiKey = await AsyncStorage.getItem("GEMINI_API_KEY");
+      if (apiKey) return { "X-Gemini-API-Key": apiKey };
+    } catch {
+      // AsyncStorage not available (web/test) — server will use env key
+    }
+    return {};
   }
 
-  /** POST helper that always includes the Gemini key header. */
+  /** Typed POST helper — always includes Content-Type + API key header. */
   private static async post<T>(path: string, body: unknown): Promise<T> {
-    const headers = {
+    const headers: Record<string, string> = {
       "Content-Type": "application/json",
       ...(await this.apiKeyHeaders()),
     };

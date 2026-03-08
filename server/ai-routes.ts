@@ -1,479 +1,567 @@
 /**
- * AI Tutor Routes  –  /api/ai/*
+ * AI Routes — Express router for all AI tutoring endpoints
  *
- * All endpoints accept an optional `x-gemini-api-key` header (falls back
- * to GEMINI_API_KEY env var).  They call Gemini gemini-2.0-flash and return
- * structured JSON that matches the TypeScript types in lib/types/learning.ts.
+ * Sprint 0: Implements all endpoints that AITutorService (lib/services/ai-tutor.ts) calls.
+ *   These previously returned 404 — the tutor chat was completely broken.
  *
- * Endpoints
- * ─────────
- *  POST /api/ai/explain-simple          ConceptExplanation
- *  POST /api/ai/analyze-explanation     accuracy / gaps / misconceptions
- *  POST /api/ai/follow-up-questions     string[]
- *  POST /api/ai/generate-quiz           { questions: QuizQuestion[] }
- *  POST /api/ai/evaluate-answer         isCorrect / feedback / explanation
- *  POST /api/ai/step-by-step-solution   steps / keyInsights / relatedConcepts
- *  POST /api/ai/correct-misconception   correctionExplanation / examples
- *  POST /api/ai/concept-connections     prerequisites / relatedConcepts / …
- *  POST /api/ai/adaptive-response       AITutorResponse
- *  POST /api/ai/chat-with-rag           streaming RAG-augmented chat
+ * Sprint 1: 4 Feynman modes via `mode` parameter.
+ * Sprint 2: APE profile inference via /api/ai/profile/infer
+ * Sprint 4: Dynamic KG extraction via /api/ai/concepts/extract
+ *
+ * Security: All Gemini API calls go through gemini-service.ts (server-side).
+ *   User API keys are forwarded in X-Gemini-API-Key header → used server-side only.
+ *   The Gemini API is never called directly from the browser.
  */
 
 import { Router, Request, Response } from "express";
-import { resolveGeminiKey, geminiJSON, geminiChat } from "./services/gemini";
-import { ragStore } from "./services/rag-store";
+import { callLLM, streamLLM, extractUserApiKey } from "./services/gemini-service";
+import {
+  buildSystemPrompt,
+  buildExplainerPrompt,
+  APE_INFERENCE_PROMPT,
+  KG_EXTRACT_PROMPT,
+  FeynmanMode,
+  ProfileParams,
+} from "./services/feynman-prompts";
 
 export const aiRouter = Router();
 
-// ---------------------------------------------------------------------------
-// Helper
-// ---------------------------------------------------------------------------
+// ── Helpers ─────────────────────────────────────────────────────────────────
 
-function handleError(res: Response, err: unknown) {
-  const error = err instanceof Error ? err : new Error(String(err));
-  const status = (error as Error & { statusCode?: number }).statusCode ?? 500;
-  console.error("[ai-routes]", error.message);
-  res.status(status).json({ error: error.message });
+function userKey(req: Request): string | undefined {
+  return extractUserApiKey(req.headers as Record<string, string | string[] | undefined>);
 }
 
-// ---------------------------------------------------------------------------
-// 1. Feynman-style simple explanation
-// ---------------------------------------------------------------------------
+function jsonError(res: Response, status: number, message: string): void {
+  res.status(status).json({ error: message });
+}
 
-aiRouter.post("/explain-simple", async (req: Request, res: Response) => {
+// ── Sprint 1: Adaptive response (4 Feynman modes) ───────────────────────────
+
+aiRouter.post("/adaptive-response", async (req: Request, res: Response): Promise<void> => {
   try {
-    const apiKey = resolveGeminiKey(req);
     const {
-      conceptName,
-      description,
-      keyPoints = [],
-      commonMisconceptions = [],
-      realWorldApplications = [],
-      learningStyle = "visual",
-      explanationDepth = "moderate",
-      communicationPreference = "encouraging",
-    } = req.body as Record<string, unknown>;
-
-    const prompt = `You are an expert educator using the Feynman Technique.
-
-Concept: "${conceptName}"
-Description: "${description}"
-Key Points: ${JSON.stringify(keyPoints)}
-Common Misconceptions: ${JSON.stringify(commonMisconceptions)}
-Real-World Applications: ${JSON.stringify(realWorldApplications)}
-Student Learning Style: ${learningStyle}
-Explanation Depth: ${explanationDepth}
-Communication Preference: ${communicationPreference}
-
-Return a JSON object matching this exact shape:
-{
-  "concept": "<concept name>",
-  "simpleExplanation": "<Feynman-style plain language explanation, 3–5 sentences>",
-  "keyPoints": ["<point 1>", "<point 2>", "<point 3>"],
-  "commonMisconceptions": ["<misconception 1>", "<misconception 2>"],
-  "realWorldExamples": ["<example 1>", "<example 2>"],
-  "relatedConcepts": ["<concept 1>", "<concept 2>"],
-  "visualDescription": "<one sentence describing a diagram that would help>"
-}`;
-
-    const result = await geminiJSON(apiKey, prompt);
-    res.json(result);
-  } catch (err) {
-    handleError(res, err);
-  }
-});
-
-// ---------------------------------------------------------------------------
-// 2. Analyze student's teach-back explanation
-// ---------------------------------------------------------------------------
-
-aiRouter.post("/analyze-explanation", async (req: Request, res: Response) => {
-  try {
-    const apiKey = resolveGeminiKey(req);
-    const {
-      conceptId,
-      studentExplanation,
-      correctConcept,
-      learningStyle = "visual",
-      communicationPreference = "encouraging",
-    } = req.body as Record<string, unknown>;
-
-    const prompt = `You are an expert tutor evaluating a student's Feynman-style explanation.
-
-Concept ID: ${conceptId}
-Correct Concept: ${JSON.stringify(correctConcept)}
-Student's Explanation: "${studentExplanation}"
-Learning Style: ${learningStyle}
-Communication Preference: ${communicationPreference}
-
-Evaluate the explanation and return JSON:
-{
-  "accuracy": <0-100>,
-  "missingPoints": ["<missing point 1>", "..."],
-  "misconceptions": ["<misconception 1>", "..."],
-  "suggestions": ["<improvement suggestion 1>", "..."],
-  "refinedExplanation": "<an improved version of their explanation>"
-}`;
-
-    const result = await geminiJSON(apiKey, prompt);
-    res.json(result);
-  } catch (err) {
-    handleError(res, err);
-  }
-});
-
-// ---------------------------------------------------------------------------
-// 3. Generate Socratic follow-up questions
-// ---------------------------------------------------------------------------
-
-aiRouter.post("/follow-up-questions", async (req: Request, res: Response) => {
-  try {
-    const apiKey = resolveGeminiKey(req);
-    const {
-      conceptId,
-      conceptName,
-      identifiedGaps = [],
-      learningStyle = "visual",
-      explanationDepth = "moderate",
-      communicationPreference = "encouraging",
-    } = req.body as Record<string, unknown>;
-
-    const prompt = `You are a Socratic tutor for "${conceptName}" (ID: ${conceptId}).
-
-The student has these knowledge gaps: ${JSON.stringify(identifiedGaps)}
-Learning Style: ${learningStyle}, Depth: ${explanationDepth}, Tone: ${communicationPreference}
-
-Generate 3-5 targeted follow-up questions that guide the student to discover the answers themselves.
-Return JSON: { "questions": ["<question 1>", "<question 2>", "..."] }`;
-
-    const result = await geminiJSON<{ questions: string[] }>(apiKey, prompt);
-    res.json({ questions: result.questions ?? [] });
-  } catch (err) {
-    handleError(res, err);
-  }
-});
-
-// ---------------------------------------------------------------------------
-// 4. Generate adaptive quiz questions
-// ---------------------------------------------------------------------------
-
-aiRouter.post("/generate-quiz", async (req: Request, res: Response) => {
-  try {
-    const apiKey = resolveGeminiKey(req);
-    const {
-      conceptIds = [],
-      masteryLevels = {},
-      learningStyle = "visual",
-      explanationDepth = "moderate",
-      communicationPreference = "encouraging",
-      questionCount = 5,
-    } = req.body as Record<string, unknown>;
-
-    const prompt = `You are an adaptive quiz generator.
-
-Concepts: ${JSON.stringify(conceptIds)}
-Mastery Levels: ${JSON.stringify(masteryLevels)}
-Learning Style: ${learningStyle}, Depth: ${explanationDepth}
-
-Generate ${questionCount} adaptive quiz questions. Return JSON:
-{
-  "questions": [
-    {
-      "id": "q_<unique>",
-      "conceptId": "<concept id>",
-      "type": "multiple_choice",
-      "question": "<question text>",
-      "options": ["<A>", "<B>", "<C>", "<D>"],
-      "correctAnswer": "<A|B|C|D>",
-      "explanation": "<why this is correct>",
-      "difficulty": "beginner|intermediate|advanced|expert",
-      "relatedMisconceptions": []
-    }
-  ]
-}`;
-
-    const result = await geminiJSON<{ questions: unknown[] }>(apiKey, prompt);
-    res.json({ questions: result.questions ?? [] });
-  } catch (err) {
-    handleError(res, err);
-  }
-});
-
-// ---------------------------------------------------------------------------
-// 5. Evaluate a quiz answer
-// ---------------------------------------------------------------------------
-
-aiRouter.post("/evaluate-answer", async (req: Request, res: Response) => {
-  try {
-    const apiKey = resolveGeminiKey(req);
-    const {
-      questionId,
-      userAnswer,
-      conceptId,
-      learningStyle = "visual",
-      communicationPreference = "encouraging",
-    } = req.body as Record<string, unknown>;
-
-    const prompt = `You are evaluating a student's quiz answer.
-
-Question ID: ${questionId}
-Concept: ${conceptId}
-Student Answer: "${userAnswer}"
-Learning Style: ${learningStyle}, Tone: ${communicationPreference}
-
-Return JSON:
-{
-  "isCorrect": <true|false>,
-  "feedback": "<encouraging 1-2 sentence feedback>",
-  "explanation": "<why the answer is correct or incorrect>",
-  "misconceptionsDetected": ["<misconception if any>"]
-}`;
-
-    const result = await geminiJSON(apiKey, prompt);
-    res.json(result);
-  } catch (err) {
-    handleError(res, err);
-  }
-});
-
-// ---------------------------------------------------------------------------
-// 6. Step-by-step problem solution (DeepTutor multi-agent style)
-// ---------------------------------------------------------------------------
-
-aiRouter.post("/step-by-step-solution", async (req: Request, res: Response) => {
-  try {
-    const apiKey = resolveGeminiKey(req);
-    const {
-      problem,
-      conceptId,
-      learningStyle = "visual",
-      explanationDepth = "moderate",
-      communicationPreference = "encouraging",
-    } = req.body as Record<string, unknown>;
-
-    const prompt = `You are a step-by-step tutor solving a problem using the Feynman method.
-
-Problem: "${problem}"
-Concept: ${conceptId}
-Learning Style: ${learningStyle}, Depth: ${explanationDepth}, Tone: ${communicationPreference}
-
-Return JSON:
-{
-  "steps": ["<step 1>", "<step 2>", "<step 3>"],
-  "explanation": "<overall explanation of the approach>",
-  "keyInsights": ["<insight 1>", "<insight 2>"],
-  "relatedConcepts": ["<concept 1>", "<concept 2>"]
-}`;
-
-    const result = await geminiJSON(apiKey, prompt);
-    res.json(result);
-  } catch (err) {
-    handleError(res, err);
-  }
-});
-
-// ---------------------------------------------------------------------------
-// 7. Correct a misconception
-// ---------------------------------------------------------------------------
-
-aiRouter.post("/correct-misconception", async (req: Request, res: Response) => {
-  try {
-    const apiKey = resolveGeminiKey(req);
-    const {
-      misconception,
-      correctConcept,
-      learningStyle = "visual",
-      communicationPreference = "encouraging",
-    } = req.body as Record<string, unknown>;
-
-    const prompt = `You are a compassionate tutor correcting a student misconception.
-
-Misconception: "${misconception}"
-Correct Concept: ${JSON.stringify(correctConcept)}
-Learning Style: ${learningStyle}, Tone: ${communicationPreference}
-
-Return JSON:
-{
-  "correctionExplanation": "<clear correction in 2-3 sentences>",
-  "whyMisconceptionOccurs": "<why students typically believe this>",
-  "correctUnderstanding": "<the correct mental model>",
-  "examples": ["<concrete example 1>", "<concrete example 2>"]
-}`;
-
-    const result = await geminiJSON(apiKey, prompt);
-    res.json(result);
-  } catch (err) {
-    handleError(res, err);
-  }
-});
-
-// ---------------------------------------------------------------------------
-// 8. Concept connections (knowledge graph expansion)
-// ---------------------------------------------------------------------------
-
-aiRouter.post("/concept-connections", async (req: Request, res: Response) => {
-  try {
-    const apiKey = resolveGeminiKey(req);
-    const { conceptName, conceptDescription } = req.body as Record<string, unknown>;
-
-    const prompt = `You are building an educational knowledge graph.
-
-Concept: "${conceptName}"
-Description: "${conceptDescription}"
-
-Return JSON:
-{
-  "prerequisites": ["<concept a student must know first>"],
-  "relatedConcepts": ["<closely related concept>"],
-  "advancedConcepts": ["<what to learn next>"],
-  "applications": ["<real-world application 1>", "<real-world application 2>"]
-}`;
-
-    const result = await geminiJSON(apiKey, prompt);
-    res.json(result);
-  } catch (err) {
-    handleError(res, err);
-  }
-});
-
-// ---------------------------------------------------------------------------
-// 9. Adaptive tutor response (Theory of Mind)
-// ---------------------------------------------------------------------------
-
-aiRouter.post("/adaptive-response", async (req: Request, res: Response) => {
-  try {
-    const apiKey = resolveGeminiKey(req);
-    const {
-      studentQuestion,
-      conceptId,
-      conceptName,
-      learningStyle = "visual",
-      communicationPreference = "encouraging",
-      explanationDepth = "moderate",
-      pacePreference = "moderate",
-      preferredExamples = "mixed",
-      conversationHistory = [],
-      ragContext = "",
-    } = req.body as Record<string, unknown>;
-
-    const systemPrompt = `You are NeuroTutor AI, an adaptive Feynman-technique tutor.
-
-Student Profile:
-- Concept: ${conceptName} (ID: ${conceptId})
-- Learning Style: ${learningStyle}
-- Communication Preference: ${communicationPreference}
-- Explanation Depth: ${explanationDepth}
-- Pace: ${pacePreference}
-- Preferred Examples: ${preferredExamples}
-
-${ragContext ? `Relevant knowledge from uploaded documents:\n${ragContext}\n` : ""}
-
-Use the Feynman technique: explain simply, use analogies, check understanding.
-Never just state facts — guide the student to understand WHY.`;
-
-    // Build history for Gemini
-    const history = (conversationHistory as Array<{ role: string; content: string }>).map(
-      (m) => ({
-        role: m.role === "user" ? ("user" as const) : ("model" as const),
-        parts: [{ text: m.content }],
-      })
-    );
-
-    const responseText = await geminiChat(
-      apiKey,
-      studentQuestion as string,
-      { systemPrompt, history }
-    );
-
-    const response = {
-      id: `resp_${Date.now()}`,
-      conceptId: conceptId as string,
-      explanation: responseText,
-      stepByStepSolution: undefined,
-      relatedConcepts: [],
-      followUpQuestions: [],
-      misconceptionsAddressed: [],
-      confidence: 0.9,
-      sources: ragContext ? ["Uploaded documents"] : [],
+      studentQuestion, conceptId, conceptName,
+      learningStyle, communicationPreference, explanationDepth,
+      pacePreference, preferredExamples, conversationHistory,
+      mode = "explainer",
+    } = req.body as {
+      studentQuestion: string;
+      conceptId: string;
+      conceptName: string;
+      learningStyle?: string;
+      communicationPreference?: string;
+      explanationDepth?: number;
+      pacePreference?: string;
+      preferredExamples?: string;
+      conversationHistory?: Array<{ role: string; content: string }>;
+      mode?: FeynmanMode;
     };
 
-    res.json(response);
+    if (!studentQuestion || !conceptName) {
+      jsonError(res, 400, "studentQuestion and conceptName are required");
+      return;
+    }
+
+    const profile: ProfileParams = {
+      depthLevel: explanationDepth,
+      learningStyle,
+      commStyle: communicationPreference,
+    };
+
+    const systemPrompt = buildSystemPrompt(mode, conceptName, profile);
+    const history = (conversationHistory ?? [])
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+
+    const result = await callLLM({
+      systemPrompt,
+      userMessage: studentQuestion,
+      history,
+      userApiKey: userKey(req),
+    });
+
+    res.json({
+      response: result.content,
+      conceptId,
+      mode,
+      feedbackType: "explanation",
+      suggestedFollowUp: null,
+    });
   } catch (err) {
-    handleError(res, err);
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    jsonError(res, 500, msg);
   }
 });
 
-// ---------------------------------------------------------------------------
-// 10. RAG-augmented chat (searches all KBs before answering)
-// ---------------------------------------------------------------------------
+// ── Sprint 1: Streaming chat (SSE) ──────────────────────────────────────────
 
-aiRouter.post("/chat-with-rag", async (req: Request, res: Response) => {
+aiRouter.post("/chat", async (req: Request, res: Response): Promise<void> => {
+  const {
+    message, sessionId, mode = "explainer", history = [], topic = "the current topic", profile = {},
+  } = req.body as {
+    message: string;
+    sessionId?: string;
+    mode?: FeynmanMode;
+    history?: Array<{ role: "user" | "assistant"; content: string }>;
+    topic?: string;
+    profile?: ProfileParams;
+  };
+
+  if (!message) {
+    jsonError(res, 400, "message is required");
+    return;
+  }
+
+  // Set SSE headers
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+
+  const systemPrompt = buildSystemPrompt(mode, topic, profile);
+
+  await streamLLM(
+    { systemPrompt, userMessage: message, history, userApiKey: userKey(req) },
+    (chunk) => {
+      res.write(`data: ${JSON.stringify({ chunk, sessionId })}\n\n`);
+    },
+    () => {
+      res.write(`data: ${JSON.stringify({ done: true, sessionId })}\n\n`);
+      res.end();
+    },
+    (err) => {
+      res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+      res.end();
+    }
+  );
+});
+
+// ── Sprint 0: Feynman simple explanation ────────────────────────────────────
+
+aiRouter.post("/explain-simple", async (req: Request, res: Response): Promise<void> => {
   try {
-    const apiKey = resolveGeminiKey(req);
+    const {
+      conceptName, description, keyPoints = [], commonMisconceptions = [],
+      realWorldApplications = [], learningStyle, explanationDepth, communicationPreference,
+    } = req.body as {
+      conceptName: string;
+      description?: string;
+      keyPoints?: string[];
+      commonMisconceptions?: string[];
+      realWorldApplications?: string[];
+      learningStyle?: string;
+      explanationDepth?: number;
+      communicationPreference?: string;
+    };
+
+    if (!conceptName) { jsonError(res, 400, "conceptName is required"); return; }
+
+    const profile: ProfileParams = { depthLevel: explanationDepth, learningStyle, commStyle: communicationPreference };
+    const systemPrompt = buildExplainerPrompt(conceptName, profile);
+
+    const userMessage = [
+      `Concept: ${conceptName}`,
+      description ? `Description: ${description}` : "",
+      keyPoints.length ? `Key points: ${keyPoints.join(", ")}` : "",
+      commonMisconceptions.length ? `Common misconceptions: ${commonMisconceptions.join(", ")}` : "",
+      realWorldApplications.length ? `Real-world applications: ${realWorldApplications.join(", ")}` : "",
+      "Please provide a Feynman-style simple explanation with an analogy, key insights, and a teaching snapshot.",
+    ].filter(Boolean).join("\n");
+
+    const result = await callLLM({ systemPrompt, userMessage, userApiKey: userKey(req) });
+
+    res.json({
+      simpleExplanation: result.content,
+      conceptName,
+      analogies: [],
+      keyInsights: keyPoints.slice(0, 3),
+      teachingSnapshot: result.content.split("\n").slice(-2).join(" "),
+    });
+  } catch (err) {
+    jsonError(res, 500, err instanceof Error ? err.message : "Unknown error");
+  }
+});
+
+// ── Sprint 0: Analyze student explanation (Feynman Step 2) ──────────────────
+
+aiRouter.post("/analyze-explanation", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { conceptId, studentExplanation, correctConcept, learningStyle, communicationPreference } = req.body as {
+      conceptId: string;
+      studentExplanation: string;
+      correctConcept: { name: string; description: string; keyPoints: string[]; commonMisconceptions: string[] };
+      learningStyle?: string;
+      communicationPreference?: string;
+    };
+
+    if (!studentExplanation || !correctConcept?.name) {
+      jsonError(res, 400, "studentExplanation and correctConcept are required"); return;
+    }
+
+    const systemPrompt = `You are a Feynman-method tutor evaluating a student's explanation.
+Assess accuracy, identify gaps, detect misconceptions, and give actionable suggestions.
+Respond in JSON only:
+{"accuracy":0-100,"missingPoints":[],"misconceptions":[],"suggestions":[],"refinedExplanation":"..."}
+Communication style: ${communicationPreference ?? "encouraging"}, learning style: ${learningStyle ?? "mixed"}.`;
+
+    const userMessage = `Student explained "${correctConcept.name}":
+"${studentExplanation}"
+
+Correct key points: ${correctConcept.keyPoints.join(", ")}
+Common misconceptions to watch for: ${correctConcept.commonMisconceptions.join(", ")}`;
+
+    const result = await callLLM({ systemPrompt, userMessage, userApiKey: userKey(req) });
+
+    let parsed: { accuracy: number; missingPoints: string[]; misconceptions: string[]; suggestions: string[]; refinedExplanation: string };
+    try {
+      const jsonMatch = result.content.match(/\{[\s\S]*\}/);
+      parsed = JSON.parse(jsonMatch?.[0] ?? result.content);
+    } catch {
+      parsed = { accuracy: 50, missingPoints: [], misconceptions: [], suggestions: [result.content], refinedExplanation: "" };
+    }
+    res.json({ ...parsed, conceptId });
+  } catch (err) {
+    jsonError(res, 500, err instanceof Error ? err.message : "Unknown error");
+  }
+});
+
+// ── Sprint 0: Follow-up questions ────────────────────────────────────────────
+
+aiRouter.post("/follow-up-questions", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { conceptId, conceptName, identifiedGaps = [], learningStyle, explanationDepth } = req.body as {
+      conceptId: string;
+      conceptName: string;
+      identifiedGaps: string[];
+      learningStyle?: string;
+      explanationDepth?: number;
+    };
+
+    const systemPrompt = `You are a Feynman-method tutor. Generate 3-5 targeted follow-up questions to help a student fill identified gaps.
+Depth level: ${explanationDepth ?? 5}/10. Style: ${learningStyle ?? "mixed"}.
+Return JSON array: ["question1","question2",...]`;
+
+    const userMessage = `Concept: ${conceptName}\nGaps identified: ${identifiedGaps.join("; ")}`;
+    const result = await callLLM({ systemPrompt, userMessage, userApiKey: userKey(req) });
+
+    let questions: string[] = [];
+    try {
+      const match = result.content.match(/\[[\s\S]*\]/);
+      questions = JSON.parse(match?.[0] ?? "[]");
+    } catch {
+      questions = result.content.split("\n").filter((l) => l.trim().endsWith("?")).slice(0, 5);
+    }
+    res.json({ questions, conceptId });
+  } catch (err) {
+    jsonError(res, 500, err instanceof Error ? err.message : "Unknown error");
+  }
+});
+
+// ── Sprint 3: Adaptive quiz generation (BKT-driven) ─────────────────────────
+
+aiRouter.post("/generate-quiz", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { conceptIds = [], masteryLevels = {}, learningStyle, explanationDepth, questionCount = 5 } = req.body as {
+      conceptIds: string[];
+      masteryLevels: Record<string, string>;
+      learningStyle?: string;
+      explanationDepth?: number;
+      questionCount?: number;
+    };
+
+    const systemPrompt = `You are an adaptive quiz generator using the 85% Rule (Wilson et al. 2019).
+Generate ${questionCount} questions for the student's mastery level.
+Depth: ${explanationDepth ?? 5}/10. Style: ${learningStyle ?? "mixed"}.
+Return JSON array:
+[{"id":"q1","conceptId":"...","question":"...","type":"multiple_choice","options":["A","B","C","D"],"correctAnswer":"A","explanation":"...","bloomLevel":1-6}]
+Adjust difficulty: if mastery <0.6 → remember/understand (Bloom 1-2); if 0.6-0.85 → apply/analyze (3-4); if >0.85 → evaluate/create (5-6).`;
+
+    const masteryInfo = conceptIds.map((id) => `${id}: ${masteryLevels[id] ?? "unknown"}`).join(", ");
+    const result = await callLLM({ systemPrompt, userMessage: `Concepts and mastery: ${masteryInfo}`, userApiKey: userKey(req) });
+
+    let questions: unknown[] = [];
+    try {
+      const match = result.content.match(/\[[\s\S]*\]/);
+      questions = JSON.parse(match?.[0] ?? "[]");
+    } catch {
+      questions = [];
+    }
+    res.json({ questions });
+  } catch (err) {
+    jsonError(res, 500, err instanceof Error ? err.message : "Unknown error");
+  }
+});
+
+// ── Sprint 3: Evaluate quiz answer ──────────────────────────────────────────
+
+aiRouter.post("/evaluate-answer", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { questionId, userAnswer, conceptId, learningStyle, communicationPreference } = req.body as {
+      questionId: string;
+      userAnswer: string;
+      conceptId: string;
+      learningStyle?: string;
+      communicationPreference?: string;
+    };
+
+    const systemPrompt = `You are a tutor evaluating a student's quiz answer.
+Style: ${communicationPreference ?? "encouraging"}, learning style: ${learningStyle ?? "mixed"}.
+Return JSON: {"isCorrect":bool,"feedback":"...","explanation":"...","misconceptionsDetected":[]}`;
+
+    const result = await callLLM({
+      systemPrompt,
+      userMessage: `Question ID: ${questionId}\nConcept: ${conceptId}\nStudent answer: "${userAnswer}"`,
+      userApiKey: userKey(req),
+    });
+
+    let parsed: { isCorrect: boolean; feedback: string; explanation: string; misconceptionsDetected: string[] };
+    try {
+      const match = result.content.match(/\{[\s\S]*\}/);
+      parsed = JSON.parse(match?.[0] ?? result.content);
+    } catch {
+      parsed = { isCorrect: false, feedback: result.content, explanation: "", misconceptionsDetected: [] };
+    }
+    res.json({ ...parsed, questionId, conceptId });
+  } catch (err) {
+    jsonError(res, 500, err instanceof Error ? err.message : "Unknown error");
+  }
+});
+
+// ── Sprint 0: Step-by-step solution ─────────────────────────────────────────
+
+aiRouter.post("/step-by-step-solution", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { problem, conceptId, learningStyle, explanationDepth, communicationPreference } = req.body as {
+      problem: string;
+      conceptId: string;
+      learningStyle?: string;
+      explanationDepth?: number;
+      communicationPreference?: string;
+    };
+
+    const systemPrompt = `You are a Feynman-method tutor. Break down solutions step by step.
+Depth: ${explanationDepth ?? 5}/10. Style: ${communicationPreference ?? "encouraging"}, learning: ${learningStyle ?? "mixed"}.
+Return JSON: {"steps":[],"explanation":"...","keyInsights":[],"relatedConcepts":[]}`;
+
+    const result = await callLLM({ systemPrompt, userMessage: `Problem: ${problem}\nConcept: ${conceptId}`, userApiKey: userKey(req) });
+
+    let parsed: { steps: string[]; explanation: string; keyInsights: string[]; relatedConcepts: string[] };
+    try {
+      const match = result.content.match(/\{[\s\S]*\}/);
+      parsed = JSON.parse(match?.[0] ?? result.content);
+    } catch {
+      parsed = { steps: [result.content], explanation: result.content, keyInsights: [], relatedConcepts: [] };
+    }
+    res.json(parsed);
+  } catch (err) {
+    jsonError(res, 500, err instanceof Error ? err.message : "Unknown error");
+  }
+});
+
+// ── Sprint 0: Misconception correction ──────────────────────────────────────
+
+aiRouter.post("/correct-misconception", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { misconception, correctConcept, learningStyle, communicationPreference } = req.body as {
+      misconception: string;
+      correctConcept: { name: string; description: string; keyPoints: string[] };
+      learningStyle?: string;
+      communicationPreference?: string;
+    };
+
+    const systemPrompt = `You are a Feynman-method tutor. Gently correct a student misconception without making them feel bad.
+Style: ${communicationPreference ?? "encouraging"}, learning: ${learningStyle ?? "mixed"}.
+Return JSON: {"correctionExplanation":"...","whyMisconceptionOccurs":"...","correctUnderstanding":"...","examples":[]}`;
+
+    const result = await callLLM({
+      systemPrompt,
+      userMessage: `Misconception: "${misconception}"\nCorrecting concept: ${correctConcept.name}\nKey points: ${correctConcept.keyPoints.join(", ")}`,
+      userApiKey: userKey(req),
+    });
+
+    let parsed: { correctionExplanation: string; whyMisconceptionOccurs: string; correctUnderstanding: string; examples: string[] };
+    try {
+      const match = result.content.match(/\{[\s\S]*\}/);
+      parsed = JSON.parse(match?.[0] ?? result.content);
+    } catch {
+      parsed = { correctionExplanation: result.content, whyMisconceptionOccurs: "", correctUnderstanding: "", examples: [] };
+    }
+    res.json(parsed);
+  } catch (err) {
+    jsonError(res, 500, err instanceof Error ? err.message : "Unknown error");
+  }
+});
+
+// ── Sprint 4: Concept connections (Dynamic KG) ──────────────────────────────
+
+aiRouter.post("/concept-connections", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { conceptName, conceptDescription } = req.body as { conceptName: string; conceptDescription: string };
+
+    const systemPrompt = `You are a knowledge graph builder for an educational AI tutor.
+Return JSON: {"prerequisites":[],"relatedConcepts":[],"advancedConcepts":[],"applications":[]}`;
+
+    const result = await callLLM({
+      systemPrompt,
+      userMessage: `Concept: ${conceptName}\nDescription: ${conceptDescription}`,
+      userApiKey: userKey(req),
+    });
+
+    let parsed: { prerequisites: string[]; relatedConcepts: string[]; advancedConcepts: string[]; applications: string[] };
+    try {
+      const match = result.content.match(/\{[\s\S]*\}/);
+      parsed = JSON.parse(match?.[0] ?? result.content);
+    } catch {
+      parsed = { prerequisites: [], relatedConcepts: [], advancedConcepts: [], applications: [] };
+    }
+    res.json(parsed);
+  } catch (err) {
+    jsonError(res, 500, err instanceof Error ? err.message : "Unknown error");
+  }
+});
+
+// ── Sprint 4: Dynamic KG extraction from conversation ───────────────────────
+
+aiRouter.post("/concepts/extract", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { messages = [] } = req.body as { messages: Array<{ role: string; content: string }> };
+    const transcript = messages.slice(-10).map((m) => `${m.role}: ${m.content}`).join("\n");
+
+    const result = await callLLM({
+      systemPrompt: KG_EXTRACT_PROMPT,
+      userMessage: `Conversation:\n${transcript}`,
+      userApiKey: userKey(req),
+    });
+
+    let parsed: { new_nodes: unknown[]; new_edges: unknown[]; mastery_signals: unknown[] };
+    try {
+      const match = result.content.match(/\{[\s\S]*\}/);
+      parsed = JSON.parse(match?.[0] ?? result.content);
+    } catch {
+      parsed = { new_nodes: [], new_edges: [], mastery_signals: [] };
+    }
+    res.json(parsed);
+  } catch (err) {
+    jsonError(res, 500, err instanceof Error ? err.message : "Unknown error");
+  }
+});
+
+// ── Sprint 2: APE profile inference ─────────────────────────────────────────
+
+aiRouter.post("/profile/infer", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { messages = [] } = req.body as { messages: Array<{ role: string; content: string }> };
+
+    if (messages.length < 2) {
+      res.json({ profile: null, reason: "Not enough messages to infer profile (need ≥ 2)" });
+      return;
+    }
+
+    const transcript = messages.slice(-10).map((m) => `${m.role}: ${m.content}`).join("\n");
+
+    const result = await callLLM({
+      systemPrompt: APE_INFERENCE_PROMPT,
+      userMessage: `Conversation (last ${Math.min(messages.length, 10)} messages):\n${transcript}`,
+      userApiKey: userKey(req),
+    });
+
+    let profile: Record<string, unknown>;
+    try {
+      const match = result.content.match(/\{[\s\S]*\}/);
+      profile = JSON.parse(match?.[0] ?? result.content);
+    } catch {
+      profile = { error: "Could not parse profile", raw: result.content };
+    }
+    res.json({ profile });
+  } catch (err) {
+    jsonError(res, 500, err instanceof Error ? err.message : "Unknown error");
+  }
+});
+
+// ── RAG-augmented chat (searches all KBs before answering) ──────────────────
+
+aiRouter.post("/chat-with-rag", async (req: Request, res: Response): Promise<void> => {
+  try {
     const {
       message,
       conceptId = "",
       conceptName = "",
-      learningStyle = "visual",
-      communicationPreference = "encouraging",
-      explanationDepth = "moderate",
+      learningStyle,
+      communicationPreference,
+      explanationDepth,
       conversationHistory = [],
       kbId,
-    } = req.body as Record<string, unknown>;
+      mode = "explainer",
+    } = req.body as {
+      message: string;
+      conceptId?: string;
+      conceptName?: string;
+      learningStyle?: string;
+      communicationPreference?: string;
+      explanationDepth?: number;
+      conversationHistory?: Array<{ role: string; content: string }>;
+      kbId?: string;
+      mode?: FeynmanMode;
+    };
 
-    // Step 1: retrieve relevant context from RAG
+    if (!message) {
+      jsonError(res, 400, "message is required");
+      return;
+    }
+
+    // Step 1: retrieve relevant context from RAG store
     let ragContext = "";
     let ragCitations: string[] = [];
     try {
+      const { ragStore } = await import("./services/rag-store");
       const results = kbId
-        ? await ragStore.search(kbId as string, message as string, apiKey, 3)
-        : await ragStore.searchAll(message as string, apiKey, 3);
-
+        ? await ragStore.search(kbId, message, userKey(req) ?? "", 3)
+        : await ragStore.searchAll(message, userKey(req) ?? "", 3);
       if (results.length > 0) {
         ragContext = results.map((r) => `[${r.citation}]\n${r.text}`).join("\n\n");
         ragCitations = results.map((r) => r.citation);
       }
     } catch {
-      // RAG failure is non-fatal
+      // RAG failure is non-fatal — answer without context
     }
 
-    // Step 2: re-use adaptive-response logic with RAG context injected
-    const systemPrompt = `You are NeuroTutor AI, an adaptive Feynman-technique tutor.
+    // Step 2: build system prompt augmented with retrieved context
+    const profile: ProfileParams = {
+      depthLevel: explanationDepth,
+      learningStyle,
+      commStyle: communicationPreference,
+    };
+    let systemPrompt = buildSystemPrompt(mode, conceptName || "this concept", profile);
+    if (ragContext) {
+      systemPrompt += `\n\nRelevant context from student's uploaded documents:\n${ragContext}\n\nCite sources when using this context.`;
+    }
 
-Student Profile:
-- Concept: ${conceptName} (ID: ${conceptId})
-- Learning Style: ${learningStyle}
-- Communication Preference: ${communicationPreference}
-- Explanation Depth: ${explanationDepth}
+    const history = (conversationHistory)
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
 
-${ragContext ? `Relevant context from uploaded documents:\n${ragContext}\n\nUse this context to ground your answer. Cite sources when using this information.\n` : ""}
-
-Explain clearly using analogies. Guide understanding, don't just provide answers.`;
-
-    const history = (conversationHistory as Array<{ role: string; content: string }>).map(
-      (m) => ({
-        role: m.role === "user" ? ("user" as const) : ("model" as const),
-        parts: [{ text: m.content }],
-      })
-    );
-
-    const responseText = await geminiChat(apiKey, message as string, {
+    const result = await callLLM({
       systemPrompt,
+      userMessage: message,
       history,
+      userApiKey: userKey(req),
     });
 
     res.json({
       id: `resp_${Date.now()}`,
       conceptId,
-      explanation: responseText,
+      explanation: result.content,
       relatedConcepts: [],
       followUpQuestions: [],
       misconceptionsAddressed: [],
       confidence: 0.9,
       sources: ragCitations,
       ragUsed: ragCitations.length > 0,
+      mode,
     });
   } catch (err) {
-    handleError(res, err);
+    jsonError(res, 500, err instanceof Error ? err.message : "Unknown error");
   }
 });

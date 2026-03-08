@@ -63,10 +63,10 @@ export default function APISetupScreen() {
           <View className="bg-surface rounded-2xl p-6 border border-border gap-4">
             <Text className="text-lg font-semibold text-foreground">Setup Required</Text>
             <Text className="text-sm text-muted leading-relaxed">
-              NeuroTutor AI uses Google Gemini 3.1 Pro to power AI tutoring. To get started, you&apos;ll need to provide your own API key.
+              NeuroTutor AI uses Google Gemini to power AI tutoring. To get started, you&apos;ll need to provide your own API key.
             </Text>
             <Text className="text-sm font-medium text-primary">
-              This is a self-hosted app - your API key is stored locally on your device only.
+              Self-hosted security: your key is stored locally and forwarded to the local server for all AI calls — it never goes directly from your device to Google.
             </Text>
           </View>
 
@@ -94,7 +94,7 @@ export default function APISetupScreen() {
 
           {/* API Key Input */}
           <View className="gap-2">
-            <Text className="text-sm font-semibold text-foreground">Gemini 3.1 Pro API Key</Text>
+            <Text className="text-sm font-semibold text-foreground">Gemini API Key</Text>
             <TextInput
               className="bg-surface border border-border rounded-lg p-4 text-foreground text-base"
               placeholder="sk-..."
@@ -106,7 +106,7 @@ export default function APISetupScreen() {
               multiline={true}
             />
             <Text className="text-xs text-muted">
-              Your API key is stored locally on your device and never sent to external servers.
+              Your API key is stored locally and used server-side — never sent directly to Google from your device.
             </Text>
           </View>
 
@@ -124,7 +124,7 @@ export default function APISetupScreen() {
           {/* Privacy Notice */}
           <View className="bg-success/10 rounded-lg p-4 border border-success/30">
             <Text className="text-xs text-success font-medium">
-              🔒 Privacy: Your API key is stored locally and encrypted. NeuroTutor AI does not collect or transmit your key to any external servers.
+              🔒 Security: Your API key is stored locally and forwarded to the local NeuroTutor server for all AI calls. The server calls the Gemini API on your behalf — your key is never sent directly from your device to Google.
             </Text>
           </View>
         </View>

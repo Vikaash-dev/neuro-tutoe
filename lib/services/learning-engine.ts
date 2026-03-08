@@ -191,29 +191,31 @@ export class LearningEngineService {
   ): Promise<SpacedRepetitionSchedule> {
     const schedule = await this.getSpacedRepetitionSchedule(conceptId);
 
-    // SM-2 algorithm
+    // SM-2 algorithm — currentInterval stores actual day count, not an array index.
+    // Standard SM-2 schedule: 1 day → 6 days → interval × ease_factor (Wozniak, 1987).
+    const DAY_MS = 86400000;
     if (quality < 3) {
-      // Failed, reset
+      // Failed — reset to 0 days (review again in 1 day)
       schedule.currentInterval = 0;
       schedule.easeFactor = Math.max(1.3, schedule.easeFactor - 0.2);
     } else {
       // Passed
       if (schedule.currentInterval === 0) {
-        schedule.currentInterval = 1; // 1 day
+        schedule.currentInterval = 1; // first successful review → 1 day
       } else if (schedule.currentInterval === 1) {
-        schedule.currentInterval = 3; // 3 days
+        schedule.currentInterval = 6; // second review → 6 days (SM-2 standard)
       } else {
         schedule.currentInterval = Math.round(
           schedule.currentInterval * schedule.easeFactor
         );
       }
+      // Ease factor update: better performance = easier future recalls
       schedule.easeFactor = Math.max(1.3, schedule.easeFactor + 0.1 - (5 - quality) * 0.08);
     }
 
-    const intervalMs =
-      schedule.reviewIntervals[Math.min(schedule.currentInterval, 3)] ||
-      schedule.reviewIntervals[3];
-    schedule.nextReviewDate = Date.now() + intervalMs;
+    // Compute next review date directly from day count (no array-index confusion)
+    const intervalDays = schedule.currentInterval === 0 ? 1 : schedule.currentInterval;
+    schedule.nextReviewDate = Date.now() + intervalDays * DAY_MS;
     schedule.quality = quality;
 
     // Save updated schedule
@@ -266,14 +268,53 @@ export class LearningEngineService {
     misconceptions: string[];
     suggestions: string[];
   } {
-    // This would typically call AI service for analysis
-    // For now, return structure for integration
-    return {
-      accuracy: 0,
-      missingPoints: [],
-      misconceptions: [],
-      suggestions: [],
-    };
+    const explanationLower = studentExplanation.toLowerCase();
+
+    // Check coverage of key points
+    const coveredPoints = correctConcept.keyPoints.filter((kp) =>
+      kp
+        .toLowerCase()
+        .split(" ")
+        .filter((w) => w.length > 4)
+        .some((word) => explanationLower.includes(word))
+    );
+    const missingPoints = correctConcept.keyPoints.filter(
+      (kp) => !coveredPoints.includes(kp)
+    );
+
+    // Check for known misconceptions mentioned without correction
+    const misconceptions = correctConcept.commonMisconceptions.filter((m) =>
+      m
+        .toLowerCase()
+        .split(" ")
+        .filter((w) => w.length > 4)
+        .some((word) => explanationLower.includes(word))
+    );
+
+    // Accuracy: weighted by coverage and misconceptions
+    const coverageRatio =
+      correctConcept.keyPoints.length > 0
+        ? coveredPoints.length / correctConcept.keyPoints.length
+        : 1;
+    const misconceptionPenalty = misconceptions.length * 0.1;
+    const accuracy = Math.max(0, Math.round((coverageRatio - misconceptionPenalty) * 100));
+
+    // Depth-adjusted suggestions based on student mental model
+    const suggestions: string[] = [];
+    if (missingPoints.length > 0) {
+      suggestions.push(`Try to include: ${missingPoints.slice(0, 2).join("; ")}`);
+    }
+    if (studentMentalModel.explanationDepth === "simple" && accuracy < 60) {
+      suggestions.push("Use a concrete everyday analogy to anchor the concept.");
+    }
+    if (studentMentalModel.explanationDepth === "detailed" && accuracy > 80) {
+      suggestions.push("Good depth! Consider adding edge cases or formal definitions.");
+    }
+    if (explanationLower.length < 100) {
+      suggestions.push("Your explanation is quite brief — try to expand with an example.");
+    }
+
+    return { accuracy, missingPoints, misconceptions, suggestions };
   }
 
   /**

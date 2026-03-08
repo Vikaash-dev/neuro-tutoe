@@ -42,7 +42,8 @@ async function startServer() {
     res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
     res.header(
       "Access-Control-Allow-Headers",
-      "Origin, X-Requested-With, Content-Type, Accept, Authorization, x-gemini-api-key",
+      // Accept both casing variants for the API key header (Sprint 0-4 uses X-Gemini-API-Key)
+      "Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Gemini-API-Key, x-gemini-api-key",
     );
     res.header("Access-Control-Allow-Credentials", "true");
 
@@ -63,10 +64,11 @@ async function startServer() {
     res.json({ ok: true, timestamp: Date.now() });
   });
 
-  // AI Tutor routes (Gemini-powered Feynman teaching)
+  // AI tutoring endpoints — Sprint 0-4 (Feynman modes, APE, KG, streaming)
+  // All Gemini API calls are made server-side (never from the browser)
   app.use("/api/ai", aiRouter);
 
-  // DeepTutor multi-agent routes
+  // DeepTutor multi-agent routes (questiongen, skill-transfer, multi-agent-solve, …)
   app.use("/api/deeptutor", deepTutorRouter);
 
   // RAG: document upload + real Gemini embeddings + hybrid search

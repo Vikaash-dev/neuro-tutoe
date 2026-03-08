@@ -217,11 +217,19 @@ export class RAGPipelineService {
     if (!kb) throw new Error(`Knowledge base ${kbId} not found`);
 
     const queryEmbedding = await getEmbedding(query);
+    const allZero = queryEmbedding.every((v) => v === 0);
 
-    const results = kb.embeddings.map((emb) => ({
-      emb,
-      score: cosineSimilarity(queryEmbedding, emb.embedding),
-    }));
+    // Keyword scoring — used as fallback when embeddings are unavailable (e.g. server not running)
+    const keywords = query.toLowerCase().split(/\s+/).filter(Boolean);
+    const keywordScore = (text: string): number =>
+      keywords.reduce((acc, kw) => acc + (text.toLowerCase().includes(kw) ? 1 : 0), 0) / Math.max(keywords.length, 1);
+
+    const results = kb.embeddings.map((emb) => {
+      const sem = allZero ? 0 : cosineSimilarity(queryEmbedding, emb.embedding);
+      const kw = keywordScore(emb.text);
+      const score = allZero ? kw : 0.7 * sem + 0.3 * kw;
+      return { emb, score };
+    });
 
     results.sort((a, b) => b.score - a.score);
 

@@ -1,428 +1,723 @@
 /**
  * Pedagogical Action Space
  *
- * Replaces the SWE "execution drive" (git / npm / bash) with a
- * teaching-oriented action vocabulary for AI tutoring.
+ * Replaces the SWE execution action space (git commit, npm install, bash) with
+ * a principled pedagogical action vocabulary.
  *
- * Core principle from the problem statement:
- *   "An AI tutor requires the exact opposite behaviour [to OpenHands].
- *    Implementing a 'Confused Student Mode' requires hard-overriding the
- *    agent's action space so it outputs targeted questions instead of
- *    bash commands or file writes."
+ * Problem statement insight (OpenHands critique):
+ *   "An AI tutor does not need access to `git commit` or `npm install`.
+ *    Replace the SWE action space with a Pedagogical action space:
+ *    evaluate_mastery(), generate_analogy(), ask_socratic_question()."
  *
- * This module provides:
- *   - PedagogicalActionFactory  — constructs well-formed PedagogicalAction objects
- *   - PedagogicalActionSelector — chooses the right action from ToM + BKT signals
- *   - SocraticRestraintEnforcer — hard-blocks direct-answer giving
- *   - HintLadder                — scaffolded hints (1=subtle → 3=direct)
+ * This module defines:
+ *   1. The complete Pedagogical Action taxonomy.
+ *   2. An ActionConstraintEngine that BLOCKS execution-style actions.
+ *   3. A PedagogicalActionSelector that chooses the *right* action given the
+ *      student's current epistemic state and ToM profile (Criterion C: Socratic
+ *      Restraint — the agent is PROHIBITED from giving direct answers when
+ *      mastery < threshold, and REQUIRED to use questioning or analogy modes).
+ *   4. "Confused Student Mode" — the agent pretends to be confused to trigger
+ *      Feynman "teach back" (role reversal).
  *
- * Research basis:
- *   - SocraticLM (NeurIPS 2024): AI never gives direct answers; only questions
- *   - arXiv 2512.03501 (SocraticAI): guided query framework
- *   - NeurIPS 2024 LbT: pedagogical action must trigger retrieval practice
- *   - Wilson et al. (2019): 85%-rule → target 0.70–0.85 difficulty zone
- *   - Bloom (1984): corrective loop as primary mastery mechanism
+ * Reference:
+ *   OpenHands CodeActAgent action taxonomy (stripped for tutoring)
+ *   Mr. Ranedeer AI Tutor parameters (github.com/JushBJJ/Mr.-Ranedeer-AI-Tutor)
+ *   Bloom's Taxonomy revised (Anderson & Krathwohl, 2001)
  */
 
-import {
-  PedagogicalAction,
+import { UserProfile, FrustrationLevel } from "./tom-user-profiler";
+import { EpistemicState } from "./epistemic-state-tracker";
+
+import type {
+  PedagogicalAction as LegacyPedagogicalAction,
   PedagogicalActionResult,
-  PedagogicalActionType,
-  FeynmanMode,
-  EpistemicState,
+  EpistemicState as LegacyEpistemicState,
   TomUserProfile,
   HighOrderToMState,
+  FeynmanMode,
 } from "@/lib/types/learning";
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
+// ============================================================================
+// ACTION TAXONOMY
+// ============================================================================
 
-/** Mastery thresholds that determine action selection */
-export const ACTION_THRESHOLDS = {
-  /** Below this → always explain, never Socratic */
-  TOO_LOW_FOR_SOCRATIC: 0.30,
-  /** Above this → concept mastered; advance or use role-reversal */
-  MASTERY_GATE: 0.85,
-  /** Optimal challenge zone [lower, upper] — Wilson et al. 2019 */
-  OPTIMAL_ZONE_LOWER: 0.60,
-  OPTIMAL_ZONE_UPPER: 0.85,
-  /** Below this AND frustration signal → generate analogy first */
-  ANALOGY_FALLBACK_THRESHOLD: 0.50,
-} as const;
-
-/** Socratic mode: phrases that constitute giving a direct answer (to be blocked) */
-const DIRECT_ANSWER_PATTERNS: readonly RegExp[] = [
-  /the answer is\s+/i,
-  /the solution is\s+/i,
-  /you should do\s+/i,
-  /\bhere's how to\b/i,
-  /\bsimply\s+(do|use|apply|write)\b/i,
-  /\bjust\s+(do|use|run|type)\b/i,
-];
-
-/** Templates for Socratic redirection (used when a direct answer is blocked) */
-const SOCRATIC_REDIRECTS: readonly string[] = [
-  "Rather than telling you directly — what do you already know about this?",
-  "Good question! Before I answer, what have you tried so far?",
-  "What do you think might be the first step here?",
-  "What would need to be true for that to work?",
-  "Can you break this problem into smaller parts?",
-  "What connection do you see between this and what we discussed earlier?",
-];
-
-// ---------------------------------------------------------------------------
-// Pedagogical Action Factory
-// ---------------------------------------------------------------------------
+/** Every action the tutoring agent is permitted to take. */
+export type PedagogicalActionType =
+  // ── Assessment actions ───────────────────────────────────────────────────
+  | "evaluate_mastery"         // Run a mastery probe (quiz / Socratic check)
+  | "probe_misconception"      // Ask a targeted question to surface a specific misconception
+  // ── Teaching actions ────────────────────────────────────────────────────
+  | "explain_concept"          // Direct explanation (only when mastery is very low AND student is not in Socratic mode)
+  | "generate_analogy"         // Provide an analogy mapping new concept to known domain
+  | "show_worked_example"      // Walk through a concrete example step-by-step
+  | "draw_concept_map"         // Produce a text-based concept map / diagram
+  // ── Socratic / Guided-discovery actions ─────────────────────────────────
+  | "ask_socratic_question"    // Guide student toward insight via questioning
+  | "give_hint"                // Provide a minimal nudge without revealing the answer
+  | "trigger_confused_student" // Role reversal: agent acts confused, student must explain
+  // ── Motivational / Metacognitive actions ────────────────────────────────
+  | "acknowledge_frustration"  // Validate student frustration before continuing
+  | "celebrate_breakthrough"   // Reinforce a moment of understanding
+  | "suggest_break"            // Recommend a short break when overload detected
+  | "reframe_difficulty"       // Reframe a difficult concept as a desirable challenge
+  // ── Meta-pedagogical actions ────────────────────────────────────────────
+  | "switch_modality"          // Change explanation style (visual → verbal → example)
+  | "step_back_prerequisite"   // Step back to a prerequisite that gaps analysis reveals
+  | "advance_to_challenge"     // Move to a harder problem when student is excelling
+  | "select_pedagogy";         // Explicitly announce a pedagogical strategy change
 
 /**
- * PedagogicalActionFactory
+ * BLOCKED actions (execution-drive residuals from the SWE agent).
  *
- * Constructs well-typed PedagogicalAction objects with sensible defaults.
- * All factory methods are pure functions (no side effects).
+ * These are prohibited in the tutoring context for two reasons:
+ *  1. Autonomy conflict: performing these actions *for* the student short-circuits
+ *     learning (the tutoring equivalent of doing a student's homework).
+ *  2. Trust boundary: a tutor agent should not have write access to the student's
+ *     filesystem or shell. `read_file` is also blocked here because the tutoring
+ *     agent should only access content that has been explicitly shared through the
+ *     conversational context — not autonomously retrieve files behind the scenes.
+ *     Educational content access is handled through the RAG pipeline instead.
  */
-export class PedagogicalActionFactory {
-  /** Create an evaluate_mastery probe for a concept. */
-  static evaluateMastery(
-    conceptId: string,
-    probeQuestion?: string
-  ): PedagogicalAction {
-    return { type: "evaluate_mastery", conceptId, probeQuestion };
+export const BLOCKED_SWE_ACTIONS = [
+  "run_bash",
+  "write_file",
+  "git_commit",
+  "npm_install",
+  "execute_code",
+  "read_file",
+  "search_web",
+] as const;
+
+export type BlockedSWEAction = typeof BLOCKED_SWE_ACTIONS[number];
+
+// ============================================================================
+// PEDAGOGICAL ACTION PAYLOAD
+// ============================================================================
+
+/** A resolved, ready-to-execute pedagogical action. */
+export interface PedagogicalAction {
+  type: PedagogicalActionType;
+  /** Human-readable instruction for the LLM prompt. */
+  instruction: string;
+  /** Target concept for this action. */
+  conceptId: string;
+  /** Mastery level that triggered this action selection (0-1). */
+  triggerMasteryScore: number;
+  /** Bloom level this action targets (1=remember … 6=create). */
+  bloomLevel: 1 | 2 | 3 | 4 | 5 | 6;
+  /** Whether this action is in "Socratic restraint" mode (no direct answers). */
+  socraticRestraintActive: boolean;
+  /** Whether the agent is in "Confused Student Mode". */
+  confusedStudentModeActive: boolean;
+  metadata: Record<string, unknown>;
+}
+
+/** Possible outcomes observed after executing an action. */
+export type ActionOutcome =
+  | "student_understood"
+  | "student_confused"
+  | "student_frustrated"
+  | "student_engaged"
+  | "breakthrough"
+  | "no_change";
+
+export interface ActionFeedback {
+  action: PedagogicalAction;
+  outcome: ActionOutcome;
+  studentResponse: string;
+  masteryDelta: number; // change in mastery score after this action
+  timestamp: number;
+}
+
+// ============================================================================
+// ACTION CONSTRAINT ENGINE
+// ============================================================================
+
+/**
+ * Hard-blocks any SWE-style execution actions and enforces Socratic Restraint.
+ *
+ * "To use OpenHands as a tutor, you have to actively fight its core nature.
+ *  The CodeActAgent will instinctively try to write the solution. Implementing
+ *  'Confused Student Mode' requires hard-overriding the agent's action space."
+ */
+export class ActionConstraintEngine {
+  /** Mastery threshold below which direct explanation IS allowed. */
+  static readonly DIRECT_EXPLAIN_MASTERY_THRESHOLD = 0.25;
+  /** Mastery threshold above which Socratic questioning is enforced. */
+  static readonly SOCRATIC_RESTRAINT_THRESHOLD = 0.40;
+  /** Mastery threshold above which "Confused Student Mode" unlocks. */
+  static readonly CONFUSED_STUDENT_THRESHOLD = 0.55;
+
+  /** Returns true if the action type is completely prohibited. */
+  isBlocked(actionType: string): boolean {
+    return (BLOCKED_SWE_ACTIONS as readonly string[]).includes(actionType);
   }
 
   /**
-   * Create a generate_analogy action.
-   * Default target domain chosen from student profile if available.
+   * Given a proposed action and the current epistemic state, return the
+   * action (possibly overridden) that is actually permissible.
+   *
+   * Override rules (in priority order):
+   *  1. If proposed action is a BLOCKED SWE action → replace with ask_socratic_question.
+   *  2. If `explain_concept` is proposed but mastery ≥ SOCRATIC_RESTRAINT_THRESHOLD
+   *     → replace with ask_socratic_question (Socratic Restraint active).
+   *  3. If mastery ≥ CONFUSED_STUDENT_THRESHOLD and student has answered ≥ 2 questions
+   *     → allow trigger_confused_student (role reversal).
+   *  4. If frustration is "high" or "overwhelmed" → prepend acknowledge_frustration.
    */
-  static generateAnalogy(
+  constrainAction(
+    proposedType: string,
+    mastery: number,
+    frustration: FrustrationLevel,
     conceptId: string,
-    studentDepth: number,
-    targetDomain: string = "everyday life"
-  ): PedagogicalAction {
-    return { type: "generate_analogy", conceptId, targetDomain, studentDepth };
+    studentResponseCount: number
+  ): PedagogicalActionType {
+    // Rule 1 — Block SWE actions
+    if (this.isBlocked(proposedType)) {
+      return "ask_socratic_question";
+    }
+
+    // Rule 2 — Socratic restraint: don't give direct answers when student has some knowledge
+    if (
+      proposedType === "explain_concept" &&
+      mastery >= ActionConstraintEngine.SOCRATIC_RESTRAINT_THRESHOLD
+    ) {
+      return "ask_socratic_question";
+    }
+
+    // Rule 3 — Confused Student Mode when student is sufficiently capable
+    if (
+      proposedType === "trigger_confused_student" &&
+      mastery < ActionConstraintEngine.CONFUSED_STUDENT_THRESHOLD
+    ) {
+      // Not ready yet — use give_hint instead
+      return "give_hint";
+    }
+
+    // Rule 4 — Frustration override
+    if (
+      (frustration === "high" || frustration === "overwhelmed") &&
+      !["acknowledge_frustration", "suggest_break"].includes(proposedType)
+    ) {
+      return "acknowledge_frustration";
+    }
+
+    return proposedType as PedagogicalActionType;
   }
 
-  /** Create an ask_socratic_question action targeting a specific gap. */
-  static askSocraticQuestion(
-    conceptId: string,
-    targetGap: string,
-    questionText: string
-  ): PedagogicalAction {
-    return { type: "ask_socratic_question", conceptId, targetGap, questionText };
+  /**
+   * Check if Socratic Restraint is currently active.
+   * When active, the agent MUST NOT give a direct answer.
+   */
+  isSocraticRestraintActive(mastery: number): boolean {
+    return mastery >= ActionConstraintEngine.SOCRATIC_RESTRAINT_THRESHOLD;
   }
 
-  /** Create a provide_correction action (Bloom corrective loop). */
-  static provideCorrection(
-    conceptId: string,
-    gapDescription: string,
-    correctionText: string,
-    retryQuestionId: string
-  ): PedagogicalAction {
-    return {
-      type: "provide_correction",
-      conceptId,
-      gapDescription,
-      correctionText,
-      retryQuestionId,
-    };
-  }
-
-  /** Create an adjust_difficulty action. */
-  static adjustDifficulty(
-    conceptId: string,
-    direction: "lower" | "raise" | "maintain",
-    reason: string
-  ): PedagogicalAction {
-    return { type: "adjust_difficulty", conceptId, direction, reason };
-  }
-
-  /** Create a trigger_review action for spaced repetition. */
-  static triggerReview(
-    conceptIds: string[],
-    urgency: "immediate" | "end_of_session" | "next_session" = "end_of_session"
-  ): PedagogicalAction {
-    return { type: "trigger_review", conceptIds, urgency };
-  }
-
-  /** Create an explain_concept action. */
-  static explainConcept(
-    conceptId: string,
-    explanation: string,
-    mode: FeynmanMode = "explainer"
-  ): PedagogicalAction {
-    return { type: "explain_concept", conceptId, explanation, mode };
-  }
-
-  /** Create an offer_hint action. */
-  static offerHint(
-    conceptId: string,
-    hintLevel: 1 | 2 | 3,
-    hintText: string
-  ): PedagogicalAction {
-    return { type: "offer_hint", conceptId, hintLevel, hintText };
-  }
-
-  /** Wrap an action in a PedagogicalActionResult. */
-  static toResult(
-    action: PedagogicalAction,
-    output: string,
-    masteryUpdated = false,
-    newMasteryP?: number
-  ): PedagogicalActionResult {
-    return {
-      action,
-      executedAt: Date.now(),
-      output,
-      masteryUpdated,
-      newMasteryP,
-    };
+  /**
+   * Check if Confused Student Mode should be triggered.
+   */
+  shouldTriggerConfusedStudentMode(mastery: number, sessionInteractionCount: number): boolean {
+    return (
+      mastery >= ActionConstraintEngine.CONFUSED_STUDENT_THRESHOLD &&
+      sessionInteractionCount >= 3
+    );
   }
 }
 
-// ---------------------------------------------------------------------------
-// Pedagogical Action Selector
-// ---------------------------------------------------------------------------
+// ============================================================================
+// PEDAGOGICAL ACTION SELECTOR
+// ============================================================================
 
 /**
- * PedagogicalActionSelector
- *
  * Selects the optimal pedagogical action given:
- *   - EpistemicState (ToM-fused BKT mastery)
- *   - TomUserProfile (psychological profile)
- *   - HighOrderToMState (nested beliefs / false confidence)
- *   - Current Feynman mode
+ *  - The student's current epistemic state (mastery probability from DKT)
+ *  - Their ToM profile (preferred modality, frustration triggers)
+ *  - The current session context (recent interactions, breakthrough signals)
  *
- * Decision logic implements the "closed loop" from the problem statement:
- *   Student Text → Overload Detection → ToM → BKT → Action Selection
+ * This is the "action layer" that replaces the CodeActAgent's execution planner.
  */
 export class PedagogicalActionSelector {
+  private constraintEngine: ActionConstraintEngine;
+
+  constructor() {
+    this.constraintEngine = new ActionConstraintEngine();
+  }
+
   /**
-   * Select the best action for the given concept + student state.
+   * Select the best next pedagogical action.
    *
-   * @param conceptId       Target concept.
-   * @param epistemicState  Fused ToM+BKT state.
-   * @param tomProfile      Psychological profile.
-   * @param highOrderState  Nested belief state.
-   * @param currentMode     Active Feynman teaching mode.
+   * @param conceptId - Concept currently being taught.
+   * @param epistemicState - Current DKT mastery estimate.
+   * @param profile - Student's long-term ToM profile.
+   * @param sessionContext - Recent session events and interaction count.
    */
-  static select(
+  selectAction(
     conceptId: string,
     epistemicState: EpistemicState,
-    tomProfile: TomUserProfile,
-    highOrderState: HighOrderToMState | null,
-    currentMode: FeynmanMode
-  ): { action: PedagogicalAction; rationale: string; suggestedMode: FeynmanMode | null } {
-    const rawP = epistemicState.conceptMasteryMap[conceptId] ?? 0.10;
-    const adjP = epistemicState.adjustedMasteryMap[conceptId] ?? rawP;
-    const isFrustrated = epistemicState.frustrationConcepts.includes(conceptId);
-    const hasFalseConfidence = highOrderState?.falseConfidenceConcepts.includes(conceptId) ?? false;
+    profile: UserProfile,
+    sessionContext: SessionContext
+  ): PedagogicalAction {
+    const mastery = epistemicState.masteryProbability;
+    const frustration = profile.averageFrustrationLevel;
+    const socraticActive = this.constraintEngine.isSocraticRestraintActive(mastery);
 
-    // ---- Socratic mode constraints ----------------------------------------
-    if (currentMode === "socratic") {
-      // In Socratic mode, always ask a question — never explain directly
-      if (adjP < ACTION_THRESHOLDS.TOO_LOW_FOR_SOCRATIC) {
-        // Too low mastery for Socratic — student can't engage with questions
-        // Graceful degradation: offer a minimal hint instead
+    // ── Priority 1: Frustration / motivational override ─────────────────────
+    if (frustration === "overwhelmed" || frustration === "high") {
+      if (sessionContext.recentFrustrationSignals >= 2) {
+        return this.buildAction("acknowledge_frustration", conceptId, mastery, 1, false, false, {
+          reason: "high_frustration",
+        });
+      }
+      if (mastery < 0.3) {
+        return this.buildAction("step_back_prerequisite", conceptId, mastery, 1, false, false, {
+          reason: "mastery_too_low_with_frustration",
+        });
+      }
+    }
+
+    // ── Priority 2: Second-order belief mismatch (Confused Student Mode) ────
+    if (
+      epistemicState.hasFlawedMentalModel &&
+      this.constraintEngine.shouldTriggerConfusedStudentMode(mastery, sessionContext.interactionCount)
+    ) {
+      return this.buildAction("trigger_confused_student", conceptId, mastery, 4, true, true, {
+        flawedBelief: epistemicState.studentSelfAssessedMastery,
+        actualMastery: mastery,
+      });
+    }
+
+    // ── Priority 3: New concept (mastery very low) ───────────────────────────
+    if (mastery < ActionConstraintEngine.DIRECT_EXPLAIN_MASTERY_THRESHOLD) {
+      // Very first encounter — direct explanation is warranted
+      const actionType = profile.preferredModality === "example-based"
+        ? "show_worked_example"
+        : profile.preferredModality === "visual"
+        ? "draw_concept_map"
+        : "explain_concept";
+      return this.buildAction(actionType, conceptId, mastery, 1, false, false, {
+        modality: profile.preferredModality,
+      });
+    }
+
+    // ── Priority 4: Misconception detected ──────────────────────────────────
+    if (
+      epistemicState.activeMisconceptions.length > 0 &&
+      profile.persistentMisconceptions[epistemicState.activeMisconceptions[0]] !== undefined
+    ) {
+      return this.buildAction("probe_misconception", conceptId, mastery, 2, socraticActive, false, {
+        misconception: epistemicState.activeMisconceptions[0],
+      });
+    }
+
+    // ── Priority 5: Socratic zone (mastery 0.25–0.75) ────────────────────────
+    if (mastery < 0.75) {
+      // Within Socratic zone — guide via questions
+      if (sessionContext.consecutiveCorrectAnswers >= 2) {
+        // Student is doing well — give a harder Socratic question
+        return this.buildAction("ask_socratic_question", conceptId, mastery, 3, true, false, {
+          difficulty: "probing",
+        });
+      }
+      if (sessionContext.recentHintRequests >= 2) {
+        return this.buildAction("generate_analogy", conceptId, mastery, 2, false, false, {
+          analogyDomain: profile.analogyResonanceTopics[0] ?? "everyday life",
+        });
+      }
+      return this.buildAction("ask_socratic_question", conceptId, mastery, 3, true, false, {
+        difficulty: "leading",
+      });
+    }
+
+    // ── Priority 6: High mastery — consolidation / advance ───────────────────
+    if (mastery >= 0.85) {
+      return this.buildAction("advance_to_challenge", conceptId, mastery, 5, false, false, {
+        bloomLevel: 5,
+      });
+    }
+
+    // ── Default: evaluate and probe ──────────────────────────────────────────
+    return this.buildAction("evaluate_mastery", conceptId, mastery, 4, false, false, {});
+  }
+
+  /**
+   * Build a PedagogicalAction with the appropriate LLM instruction.
+   */
+  buildAction(
+    type: PedagogicalActionType,
+    conceptId: string,
+    mastery: number,
+    bloomLevel: PedagogicalAction["bloomLevel"],
+    socraticRestraint: boolean,
+    confusedStudentMode: boolean,
+    metadata: Record<string, unknown>
+  ): PedagogicalAction {
+    return {
+      type,
+      instruction: this.buildInstruction(type, conceptId, mastery, socraticRestraint, confusedStudentMode, metadata),
+      conceptId,
+      triggerMasteryScore: mastery,
+      bloomLevel,
+      socraticRestraintActive: socraticRestraint,
+      confusedStudentModeActive: confusedStudentMode,
+      metadata,
+    };
+  }
+
+  private buildInstruction(
+    type: PedagogicalActionType,
+    conceptId: string,
+    mastery: number,
+    socraticRestraint: boolean,
+    confusedStudentMode: boolean,
+    metadata: Record<string, unknown>
+  ): string {
+    const restraintClause = socraticRestraint
+      ? " IMPORTANT: Do NOT provide the answer directly. Use questions only."
+      : "";
+
+    switch (type) {
+      case "evaluate_mastery":
+        return `Ask the student a short, targeted question to probe their current understanding of "${conceptId}".${restraintClause}`;
+
+      case "probe_misconception":
+        return `The student likely believes "${metadata["misconception"]}". Ask a carefully crafted question that will expose this flaw without telling them they are wrong.${restraintClause}`;
+
+      case "explain_concept":
+        return `Provide a clear, ${mastery < 0.1 ? "very simple" : "accessible"} explanation of "${conceptId}". Use ${metadata["modality"] ?? "mixed"} style.`;
+
+      case "generate_analogy":
+        return `Create a vivid analogy mapping "${conceptId}" to "${metadata["analogyDomain"] ?? "everyday life"}". Do not define the concept directly — let the analogy do the work.`;
+
+      case "show_worked_example":
+        return `Walk through a concrete worked example of "${conceptId}" step-by-step. Pause to ask the student what they think each step does.${restraintClause}`;
+
+      case "draw_concept_map":
+        return `Create a text-based concept map or structured outline that visually shows how "${conceptId}" connects to related ideas.`;
+
+      case "ask_socratic_question":
+        return `Ask a ${metadata["difficulty"] ?? "probing"} Socratic question about "${conceptId}" that guides the student toward insight without revealing the answer.${restraintClause}`;
+
+      case "give_hint":
+        return `Provide a minimal hint for "${conceptId}" that nudges the student without giving the answer. Current mastery: ${Math.round(mastery * 100)}%.${restraintClause}`;
+
+      case "trigger_confused_student":
+        return `[ROLE REVERSAL] Act as a confused student who cannot understand "${conceptId}". Ask the student to explain it to you as if you have never heard it. Probe their explanation gently to reveal any gaps.`;
+
+      case "acknowledge_frustration":
+        return `Acknowledge that "${conceptId}" is genuinely challenging. Validate the student's effort before proceeding. Offer to approach it from a different angle.`;
+
+      case "celebrate_breakthrough":
+        return `The student just demonstrated understanding of "${conceptId}". Celebrate this specifically and concretely, then ask them to generalise.`;
+
+      case "suggest_break":
+        return `Gently suggest a short break. Frame it positively — the brain consolidates learning during rest.`;
+
+      case "reframe_difficulty":
+        return `Reframe the difficulty of "${conceptId}" as a sign that real learning is happening (Bjork's desirable difficulties). Use an encouraging, growth-mindset framing.`;
+
+      case "switch_modality":
+        return `Switch the explanation style for "${conceptId}" to ${metadata["newModality"] ?? "example-based"} mode. Previous modality was not landing.`;
+
+      case "step_back_prerequisite":
+        return `Step back to a prerequisite concept before "${conceptId}". The student cannot advance without first solidifying the foundation.`;
+
+      case "advance_to_challenge":
+        return `The student has strong mastery of "${conceptId}". Introduce a harder, application-level challenge (Bloom level 5) to push into the Zone of Proximal Development.`;
+
+      case "select_pedagogy":
+        return `Announce the pedagogical strategy change: switching to ${metadata["strategy"] ?? "guided discovery"} mode for "${conceptId}".`;
+
+      default:
+        return `Continue tutoring on "${conceptId}" at current depth.`;
+    }
+  }
+
+  /** Static entry point (backward-compatible API for tests and ToMMasteryBridge) */
+  static select(
+    conceptId: string,
+    state: LegacyEpistemicState,
+    profile: TomUserProfile,
+    tomState: HighOrderToMState | null,
+    mode: FeynmanMode = "explainer"
+  ): PedagogicalSelectorResult {
+    const mastery = state.conceptMasteryMap[conceptId] ?? 0;
+    const isFrustrated = state.frustrationConcepts.includes(conceptId);
+    const hasAnalogyAffinity = profile.communicationPreferences.analogyAffinity;
+
+    // Priority 1: False confidence (second-order ToM)
+    if (tomState?.falseConfidenceConcepts.includes(conceptId)) {
+      return {
+        action: PedagogicalActionFactory.askSocraticQuestion(
+          conceptId,
+          "misconception detected",
+          `What makes you confident that you understand ${conceptId}?`
+        ),
+        suggestedMode: "socratic" as FeynmanMode,
+        rationale: "False confidence detected: student belief is flawed",
+      };
+    }
+
+    // Priority 2: Socratic mode override
+    if (mode === "socratic") {
+      if (mastery < ACTION_THRESHOLDS.DIRECT_EXPLAIN_THRESHOLD) {
         return {
           action: PedagogicalActionFactory.offerHint(
-            conceptId,
-            1,
-            "Think about the fundamental definition of this concept first."
+            conceptId, 3 as 1|2|3,
+            `Let's approach ${conceptId} step by step. What do you already know?`
           ),
-          rationale: `Mastery ${adjP.toFixed(2)} too low for Socratic dialogue — offering subtle hint`,
-          suggestedMode: "explainer",
+          suggestedMode: "explainer" as FeynmanMode,
+          rationale: `Socratic + low mastery (${mastery.toFixed(2)}) → hint first`,
         };
       }
       return {
         action: PedagogicalActionFactory.askSocraticQuestion(
           conceptId,
-          "current understanding",
-          `What would you say is the core principle behind ${conceptId}?`
+          "comprehension check",
+          `What is the key idea behind ${conceptId}?`
         ),
-        rationale: `Socratic mode: asking guided question (mastery=${adjP.toFixed(2)})`,
-        suggestedMode: null,
+        suggestedMode: "socratic" as FeynmanMode,
+        rationale: `Socratic mode + mastery ${mastery.toFixed(2)} → guided question`,
       };
     }
 
-    // ---- Priority 1: False confidence (most dangerous state) ----------------
-    if (hasFalseConfidence) {
-      return {
-        action: PedagogicalActionFactory.askSocraticQuestion(
-          conceptId,
-          "expressed but flawed understanding",
-          `I'd like to explore your understanding — can you give me a concrete example of ${conceptId}?`
-        ),
-        rationale: `False confidence detected: student thinks they know ${conceptId} but belief is flawed`,
-        suggestedMode: "socratic",
-      };
-    }
-
-    // ---- Priority 2: Frustration + low mastery → analogy ------------------
-    if (isFrustrated && adjP < ACTION_THRESHOLDS.ANALOGY_FALLBACK_THRESHOLD) {
-      const domain = tomProfile.communicationPreferences.analogyAffinity ? "everyday life" : "sports";
-      return {
-        action: PedagogicalActionFactory.generateAnalogy(conceptId, 5, domain),
-        rationale: `Frustration detected + mastery=${adjP.toFixed(2)} → analogy fallback (Ranedeer parameter)`,
-        suggestedMode: "explainer",
-      };
-    }
-
-    // ---- Priority 3: Very low mastery → explain ---------------------------
-    if (adjP < ACTION_THRESHOLDS.OPTIMAL_ZONE_LOWER) {
-      return {
-        action: PedagogicalActionFactory.explainConcept(
-          conceptId,
-          `Let me explain ${conceptId} from the beginning.`,
-          "explainer"
-        ),
-        rationale: `Mastery=${adjP.toFixed(2)} below optimal zone — explanation needed`,
-        suggestedMode: "explainer",
-      };
-    }
-
-    // ---- Priority 4: Mastered → role reversal (LbT) ----------------------
-    if (adjP >= ACTION_THRESHOLDS.MASTERY_GATE) {
+    // Priority 3: Mastered → role reversal
+    if (mastery >= ACTION_THRESHOLDS.MASTERY_GATE) {
       return {
         action: PedagogicalActionFactory.evaluateMastery(
           conceptId,
-          `Can you teach me about ${conceptId} as if I were a beginner?`
+          `Can you explain ${conceptId} as if teaching a complete beginner?`
         ),
-        rationale: `Mastery=${adjP.toFixed(2)} ≥ gate — switching to role-reversal (LbT)`,
-        suggestedMode: "student",
+        suggestedMode: "student" as FeynmanMode,
+        rationale: `Mastery ${mastery.toFixed(2)} ≥ ${ACTION_THRESHOLDS.MASTERY_GATE} → role-reversal`,
       };
     }
 
-    // ---- Priority 5: Optimal zone → Socratic scaffolding -----------------
+    // Priority 4: Frustrated + analogy affinity
+    if (isFrustrated && hasAnalogyAffinity) {
+      return {
+        action: PedagogicalActionFactory.generateAnalogy(conceptId, Math.round(mastery * 10), "everyday life"),
+        suggestedMode: "explainer" as FeynmanMode,
+        rationale: `Frustrated + analogy affinity + mastery ${mastery.toFixed(2)} → analogy`,
+      };
+    }
+
+    // Priority 5: Optimal zone → Socratic question
+    if (mastery >= ACTION_THRESHOLDS.OPTIMAL_ZONE_LOWER) {
+      return {
+        action: PedagogicalActionFactory.askSocraticQuestion(
+          conceptId,
+          "deepening comprehension",
+          `What would happen if ${conceptId} didn't exist?`
+        ),
+        suggestedMode: "socratic" as FeynmanMode,
+        rationale: `Mastery ${mastery.toFixed(2)} in optimal zone → Socratic`,
+      };
+    }
+
+    // Default: explain directly
     return {
-      action: PedagogicalActionFactory.askSocraticQuestion(
+      action: PedagogicalActionFactory.explainConcept(
         conceptId,
-        "deeper understanding",
-        `You're making good progress. What do you think would happen if we changed one key assumption about ${conceptId}?`
+        `Let me explain ${conceptId} clearly.`,
+        mode
       ),
-      rationale: `Mastery=${adjP.toFixed(2)} in optimal zone — Socratic scaffolding`,
-      suggestedMode: adjP > 0.75 ? "socratic" : null,
+      suggestedMode: mode,
+      rationale: `Low mastery ${mastery.toFixed(2)} < ${ACTION_THRESHOLDS.OPTIMAL_ZONE_LOWER} → direct explanation`,
     };
   }
+
 }
 
-// ---------------------------------------------------------------------------
-// Socratic Restraint Enforcer
-// ---------------------------------------------------------------------------
+// ============================================================================
+// SESSION CONTEXT (consumed by ActionSelector)
+// ============================================================================
 
-/**
- * SocraticRestraintEnforcer
- *
- * Hard-blocks any AI response that contains direct answers in Socratic mode.
- * This implements the architectural constraint from the problem statement:
- *   "Implementing a Confused Student Mode requires hard-overriding the
- *    agent's action space so it outputs targeted questions instead of
- *    bash commands or file writes."
- *
- * In pedagogical terms: the Socratic tutor NEVER says "the answer is X".
- */
+export interface SessionContext {
+  sessionId: string;
+  studentId: string;
+  conceptId: string;
+  interactionCount: number;
+  consecutiveCorrectAnswers: number;
+  consecutiveIncorrectAnswers: number;
+  recentHintRequests: number;
+  recentFrustrationSignals: number;
+  recentBreakthroughs: number;
+  lastActionType: PedagogicalActionType | null;
+  lastActionOutcome: ActionOutcome | null;
+}
+
+export function createSessionContext(
+  sessionId: string,
+  studentId: string,
+  conceptId: string
+): SessionContext {
+  return {
+    sessionId,
+    studentId,
+    conceptId,
+    interactionCount: 0,
+    consecutiveCorrectAnswers: 0,
+    consecutiveIncorrectAnswers: 0,
+    recentHintRequests: 0,
+    recentFrustrationSignals: 0,
+    recentBreakthroughs: 0,
+    lastActionType: null,
+    lastActionOutcome: null,
+  };
+}
+
+// Singleton instances
+export const actionConstraintEngine = new ActionConstraintEngine();
+export const pedagogicalActionSelector = new PedagogicalActionSelector();
+
+// ============================================================================
+// BACKWARD-COMPATIBLE API
+// (supports tests written against lib/types/learning.ts PedagogicalAction type)
+// ============================================================================
+
+export const ACTION_THRESHOLDS = {
+  MASTERY_GATE: 0.85,           // Above this → mastered, trigger role-reversal
+  OPTIMAL_ZONE_LOWER: 0.60,     // [0.60, 0.85] = Socratic zone
+  DIRECT_EXPLAIN_THRESHOLD: 0.40, // Below this → direct explanation warranted
+} as const;
+
+// ── PedagogicalActionFactory ─────────────────────────────────────────────────
+
+export class PedagogicalActionFactory {
+  static evaluateMastery(conceptId: string, probeQuestion?: string): LegacyPedagogicalAction {
+    return { type: "evaluate_mastery", conceptId, probeQuestion };
+  }
+
+  static generateAnalogy(
+    conceptId: string,
+    studentDepth: number = 3,
+    targetDomain: string = "everyday life"
+  ): LegacyPedagogicalAction {
+    return { type: "generate_analogy", conceptId, studentDepth, targetDomain };
+  }
+
+  static askSocraticQuestion(
+    conceptId: string,
+    targetGap: string,
+    questionText: string
+  ): LegacyPedagogicalAction {
+    return { type: "ask_socratic_question", conceptId, targetGap, questionText };
+  }
+
+  static provideCorrection(
+    conceptId: string,
+    gapDescription: string,
+    correctionText: string,
+    retryQuestionId: string = ""
+  ): LegacyPedagogicalAction {
+    return { type: "provide_correction", conceptId, gapDescription, correctionText, retryQuestionId };
+  }
+
+  static adjustDifficulty(
+    conceptId: string,
+    direction: "lower" | "raise" | "maintain",
+    reason: string
+  ): LegacyPedagogicalAction {
+    return { type: "adjust_difficulty", conceptId, direction, reason };
+  }
+
+  static triggerReview(
+    conceptIds: string[],
+    urgency: "immediate" | "end_of_session" | "next_session" = "end_of_session"
+  ): LegacyPedagogicalAction {
+    return { type: "trigger_review", conceptIds, urgency };
+  }
+
+  static explainConcept(
+    conceptId: string,
+    explanation: string,
+    mode: FeynmanMode = "explainer"
+  ): LegacyPedagogicalAction {
+    return { type: "explain_concept", conceptId, explanation, mode };
+  }
+
+  static offerHint(
+    conceptId: string,
+    hintLevel: 1 | 2 | 3,
+    hintText: string
+  ): LegacyPedagogicalAction {
+    return { type: "offer_hint", conceptId, hintLevel, hintText };
+  }
+
+  static toResult(
+    action: LegacyPedagogicalAction,
+    output: string,
+    masteryUpdated: boolean,
+    newMasteryP?: number
+  ): PedagogicalActionResult {
+    return { action, executedAt: Date.now(), output, masteryUpdated, newMasteryP };
+  }
+}
+
+// ── PedagogicalActionSelector (static interface) ─────────────────────────────
+
+export interface PedagogicalSelectorResult {
+  action: LegacyPedagogicalAction;
+  suggestedMode: FeynmanMode;
+  rationale: string;
+}
+
+// ── SocraticRestraintEnforcer ────────────────────────────────────────────────
+
+const VIOLATION_PATTERNS: RegExp[] = [
+  /the\s+answer\s+is\b/i,
+  /the\s+solution\s+is\b/i,
+  /you\s+should\s+do\b/i,
+  /here'?s?\s+how\s+to\b/i,
+  /simply\s+do\b/i,
+  /just\s+do\b/i,
+  /to\s+solve\s+this[,\s]/i,
+];
+
 export class SocraticRestraintEnforcer {
-  /**
-   * Check whether a generated response violates Socratic restraint.
-   * Returns true if the response contains a direct answer pattern.
-   */
-  static isViolation(response: string): boolean {
-    return DIRECT_ANSWER_PATTERNS.some((pattern) => pattern.test(response));
+  static isViolation(text: string): boolean {
+    return VIOLATION_PATTERNS.some((p) => p.test(text));
   }
 
-  /**
-   * Rewrite a violating response into a Socratic redirection.
-   * If no violation, returns the original response unchanged.
-   */
-  static enforce(response: string, conceptId?: string): string {
-    if (!SocraticRestraintEnforcer.isViolation(response)) {
-      return response;
-    }
-
-    // Replace with a Socratic redirect
-    const redirect = SOCRATIC_REDIRECTS[
-      Math.floor(Math.random() * SOCRATIC_REDIRECTS.length)
-    ];
-
-    return conceptId
-      ? `${redirect} (regarding ${conceptId})`
-      : redirect;
+  static listViolations(text: string): string[] {
+    return VIOLATION_PATTERNS
+      .filter((p) => p.test(text))
+      .map((p) => p.source);
   }
 
-  /**
-   * Deterministic version of enforce (for testing) — always picks the first redirect.
-   */
-  static enforceStable(response: string, conceptId?: string): string {
-    if (!SocraticRestraintEnforcer.isViolation(response)) {
-      return response;
-    }
-    const redirect = SOCRATIC_REDIRECTS[0];
-    return conceptId ? `${redirect} (regarding ${conceptId})` : redirect;
-  }
-
-  /**
-   * Get a list of all detected violations in the response.
-   */
-  static listViolations(response: string): string[] {
-    return DIRECT_ANSWER_PATTERNS
-      .filter((pattern) => pattern.test(response))
-      .map((pattern) => pattern.toString());
+  static enforceStable(text: string, conceptId?: string): string {
+    if (!SocraticRestraintEnforcer.isViolation(text)) return text;
+    const topic = conceptId ? ` about ${conceptId}` : "";
+    return `What do you think the key insight${topic} is? What have you already tried?`;
   }
 }
 
-// ---------------------------------------------------------------------------
-// Hint Ladder
-// ---------------------------------------------------------------------------
+// ── HintLadder ───────────────────────────────────────────────────────────────
 
-/**
- * HintLadder
- *
- * Provides a three-level scaffolded hint system:
- *   Level 1 — Subtle: conceptual direction without revealing the answer
- *   Level 2 — Moderate: structural hint (what kind of thing to look for)
- *   Level 3 — Direct: near-complete hint with one step remaining
- *
- * Inspired by ZPD (Vygotsky 1978) — hints close the gap gradually,
- * maintaining productive cognitive effort.
- */
 export class HintLadder {
-  /**
-   * Generate a hint at the requested level for a concept.
-   *
-   * @param conceptId    Target concept.
-   * @param currentLevel Current hint level (1, 2, or 3).
-   * @param context      Optional additional context (e.g. the question text).
-   */
   static generate(
     conceptId: string,
-    currentLevel: 1 | 2 | 3,
+    level: 1 | 2 | 3,
     context?: string
-  ): PedagogicalAction {
-    const hintTexts: Record<1 | 2 | 3, string> = {
-      1: `Consider what the fundamental definition of ${conceptId} implies in this situation.`,
-      2: `Think about the key properties of ${conceptId}. ${context ? `In context: "${context.substring(0, 60)}"` : ""} What property is most relevant here?`,
-      3: `You're very close. The key insight is to apply the core rule of ${conceptId} directly to the input. One more step and you'll have it.`,
+  ): LegacyPedagogicalAction {
+    const contextClause = context ? ` (context: ${context})` : "";
+    const hints: Record<1 | 2 | 3, string> = {
+      1: `Think carefully about what you already know about ${conceptId}${contextClause}. What's the first thing that comes to mind?`,
+      2: `For ${conceptId}, consider: what is the core mechanism or key principle${contextClause}? Try to express it in your own words.`,
+      3: `Here's a direct nudge for ${conceptId}: focus on the relationship between the inputs and outputs${contextClause}. How does the transformation work step by step?`,
     };
-
-    return PedagogicalActionFactory.offerHint(conceptId, currentLevel, hintTexts[currentLevel]);
+    return PedagogicalActionFactory.offerHint(conceptId, level, hints[level]);
   }
 
-  /**
-   * Escalate to the next hint level.
-   * Returns null if already at level 3 (should provide correction instead).
-   */
-  static escalate(currentLevel: 1 | 2 | 3): 2 | 3 | null {
-    if (currentLevel === 1) return 2;
-    if (currentLevel === 2) return 3;
-    return null; // at max — time for a correction
+  static escalate(level: 1 | 2 | 3): 2 | 3 | null {
+    if (level === 1) return 2;
+    if (level === 2) return 3;
+    return null;
   }
 
-  /**
-   * Determine the appropriate starting hint level based on mastery.
-   * High mastery → subtle hint; low mastery → more direct.
-   */
-  static startingLevel(pMastered: number): 1 | 2 | 3 {
-    if (pMastered >= 0.7) return 1;
-    if (pMastered >= 0.45) return 2;
+  static startingLevel(masteryP: number): 1 | 2 | 3 {
+    if (masteryP >= 0.75) return 1;
+    if (masteryP >= 0.45) return 2;
     return 3;
   }
 }
