@@ -849,3 +849,238 @@ export interface LearningPathAdvancement {
   triggerReason: "mastery_gate_passed" | "teacher_override" | "prerequisite_complete";
   masteryAtAdvancement: number;
 }
+
+// ============================================================================
+// ToM-SWE: THREE-TIER MEMORY ARCHITECTURE
+// Adapted from OpenHands ToM-SWE module for pedagogical use.
+// Tier 1 → Tier 2 → Tier 3 (Cleaned Sessions → Analyses → User Profiles)
+// ============================================================================
+
+/** Tier 1 — Raw dialogue + (optional) tool-use records, cleaned for analysis */
+export interface CleanedSession {
+  sessionId: string;
+  /** ISO timestamp the session started */
+  startedAt: number;
+  /** ISO timestamp the session ended (0 = still active) */
+  endedAt: number;
+  /** Cleaned message pairs (user + assistant), PII stripped */
+  messages: Array<{ role: "user" | "assistant"; content: string; turnIndex: number }>;
+  /** Any tool-use / command logs emitted during the session */
+  toolEvents: Array<{ tool: string; input: string; output: string; turnIndex: number }>;
+}
+
+/** Tier 2 — Mid-level extraction: intent, friction points, immediate goals */
+export interface SessionAnalysis {
+  sessionId: string;
+  analyzedAt: number;
+  /** The student's primary learning intent inferred from the session */
+  inferredIntent: string;
+  /** Moments where the student showed signs of struggle or confusion */
+  frictionPoints: Array<{
+    turnIndex: number;
+    description: string;
+    severity: "low" | "medium" | "high";
+  }>;
+  /** Short-term goals the student appeared to be pursuing */
+  immediateGoals: string[];
+  /** Concepts actively engaged with (not merely mentioned) */
+  activeConceptIds: string[];
+  /** Raw emotion/affect signal extracted from text */
+  affectSignal: "positive" | "neutral" | "frustrated" | "confused" | "disengaged";
+  /** Overall session quality score 0-1 (engagement × comprehension proxy) */
+  qualityScore: number;
+}
+
+/** Tier 3 — Long-term psychological user profile (ToM-SWE style) */
+export interface TomUserProfile {
+  userId: string;
+  updatedAt: number;
+  /** Preferred working style inferred across sessions */
+  workingStyle: "systematic" | "exploratory" | "example-driven" | "theory-first" | "mixed";
+  /** Implicit communication preferences */
+  communicationPreferences: {
+    verbosity: "concise" | "detailed" | "moderate";
+    formality: "casual" | "formal" | "mixed";
+    analogyAffinity: boolean;   // does this user respond well to analogies?
+    exampleAffinity: boolean;   // does this user respond well to worked examples?
+  };
+  /** Implicit needs inferred from friction patterns */
+  implicitNeeds: string[];
+  /** Persistent frustration triggers observed across sessions */
+  frustrationTriggers: string[];
+  /** Topics the user returns to repeatedly (deep interest) */
+  deepInterestTopics: string[];
+  /** Sessions analysed so far (source data for this profile) */
+  sessionIds: string[];
+  /** Confidence level of this profile 0-1 (grows with more sessions) */
+  profileConfidence: number;
+}
+
+// ============================================================================
+// PEDAGOGICAL ACTION SPACE
+// Replaces the SWE "execution drive" (git commit / npm install)
+// with a teaching-oriented action vocabulary.
+// ============================================================================
+
+export type PedagogicalActionType =
+  | "evaluate_mastery"
+  | "generate_analogy"
+  | "ask_socratic_question"
+  | "provide_correction"
+  | "adjust_difficulty"
+  | "trigger_review"
+  | "explain_concept"
+  | "offer_hint";
+
+/** Discriminated union of all pedagogical actions */
+export type PedagogicalAction =
+  | {
+      type: "evaluate_mastery";
+      conceptId: string;
+      /** Optional: quiz question to evaluate mastery with */
+      probeQuestion?: string;
+    }
+  | {
+      type: "generate_analogy";
+      conceptId: string;
+      /** Target domain for the analogy (e.g. "cooking", "sports") */
+      targetDomain: string;
+      studentDepth: number;
+    }
+  | {
+      type: "ask_socratic_question";
+      conceptId: string;
+      /** The specific misconception or gap the question targets */
+      targetGap: string;
+      /** Generated Socratic question text */
+      questionText: string;
+    }
+  | {
+      type: "provide_correction";
+      conceptId: string;
+      gapDescription: string;
+      correctionText: string;
+      retryQuestionId: string;
+    }
+  | {
+      type: "adjust_difficulty";
+      conceptId: string;
+      direction: "lower" | "raise" | "maintain";
+      reason: string;
+    }
+  | {
+      type: "trigger_review";
+      conceptIds: string[];
+      urgency: "immediate" | "end_of_session" | "next_session";
+    }
+  | {
+      type: "explain_concept";
+      conceptId: string;
+      explanation: string;
+      mode: FeynmanMode;
+    }
+  | {
+      type: "offer_hint";
+      conceptId: string;
+      hintLevel: 1 | 2 | 3;  // 1=subtle, 2=moderate, 3=direct
+      hintText: string;
+    };
+
+/** Result of a pedagogical action execution */
+export interface PedagogicalActionResult {
+  action: PedagogicalAction;
+  executedAt: number;
+  /** Text output to surface to the student */
+  output: string;
+  /** Whether this action updated the student's mastery estimate */
+  masteryUpdated: boolean;
+  /** New mastery probability after the action (if updated) */
+  newMasteryP?: number;
+}
+
+// ============================================================================
+// HIGH-ORDER THEORY OF MIND (Second-order beliefs)
+// Tracks: ground truth vs the student's flawed mental model
+// ============================================================================
+
+/**
+ * A single nested belief: what the student *believes* about concept X.
+ * May differ from the ground truth.
+ */
+export interface NestedBelief {
+  conceptId: string;
+  /** The student's expressed or inferred understanding */
+  studentModel: string;
+  /** The correct understanding (tutor ground truth) */
+  groundTruth: string;
+  /** True if the student's model deviates from ground truth */
+  isFlawed: boolean;
+  /** Estimated probability that the flaw has been corrected (0-1) */
+  correctionProbability: number;
+  /** When this belief was last observed/updated */
+  observedAt: number;
+}
+
+/**
+ * High-Order ToM state for one student.
+ * Holds the dual model required for Socratic and corrective tutoring:
+ *   - What the tutor KNOWS is correct (ground truth)
+ *   - What the tutor KNOWS the student believes (possibly wrong)
+ */
+export interface HighOrderToMState {
+  studentId: string;
+  updatedAt: number;
+  /**
+   * Zero-order beliefs: factual ground truth about concepts.
+   * Key = conceptId, Value = correct definition/rule.
+   */
+  groundTruthMap: Record<string, string>;
+  /**
+   * First-order beliefs: what the student currently believes.
+   * Key = conceptId, Value = NestedBelief
+   */
+  studentBeliefMap: Record<string, NestedBelief>;
+  /**
+   * Second-order: concepts where the tutor KNOWS the student
+   * thinks they understand but are actually wrong.
+   * (The "Dunning-Kruger" zone — most important for Socratic intervention)
+   */
+  falseConfidenceConcepts: string[];
+  /**
+   * Context coherence score 0-1.
+   * Degrades when conflicting beliefs are held over a long session
+   * (models the "context collapse" risk identified in the problem statement).
+   */
+  contextCoherenceScore: number;
+}
+
+/** Epistemic state: per-concept mastery mapped from ToM profile + BKT */
+export interface EpistemicState {
+  studentId: string;
+  conceptMasteryMap: Record<string, number>;  // conceptId → p_mastered 0-1
+  /** Frustration-adjusted mastery: lower when student is frustrated */
+  adjustedMasteryMap: Record<string, number>;
+  /** Which concepts the ToM profile flags as frustration-triggering */
+  frustrationConcepts: string[];
+  updatedAt: number;
+}
+
+// ============================================================================
+// ToM ↔ Mastery Bridge decision result
+// ============================================================================
+
+export interface TomMasteryDecision {
+  studentId: string;
+  conceptId: string;
+  /** Raw BKT mastery probability */
+  rawMastery: number;
+  /** Affect-adjusted mastery (lower when frustrated) */
+  affectAdjustedMastery: number;
+  /** The recommended pedagogical action */
+  recommendedAction: PedagogicalAction;
+  /** Human-readable rationale: "frustration because mastery=0.45 → visual analogy" */
+  rationale: string;
+  /** Fallback Ranedeer mode to switch to (if any) */
+  suggestedMode: FeynmanMode | null;
+  decidedAt: number;
+}
