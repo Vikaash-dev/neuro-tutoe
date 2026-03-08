@@ -618,3 +618,234 @@ export interface HybridSearchResult {
   graphScore: number; // centrality / path-relevance score (0-1)
   combinedScore: number; // weighted combination
 }
+
+// ============================================================================
+// DEEPFEYNMAN V2 TYPES
+// Bloom (1984) 2-Sigma Problem, ProfiLLM (arXiv:2506.13980),
+// LbT NeurIPS 2024, SocraticLM NeurIPS 2024, HLR (arXiv:1605.06065),
+// Wilson et al. (2019) 85%-Rule, Posner et al. (1982) Conceptual Change
+// ============================================================================
+
+// ---------- Ranedeer 5-Dimension User Profile (Mr. Ranedeer, JushBJJ 2023) --
+
+/** 1-10 depth scale: 1=child/beginner … 10=PhD-level peer */
+export type DepthLevel = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+
+export type LearningStyleLabel =
+  | "visual"
+  | "verbal"
+  | "active"
+  | "intuitive"
+  | "reflective"
+  | "global";
+
+export type CommunicationStyle =
+  | "formal"
+  | "textbook"
+  | "layman"
+  | "story"
+  | "socratic";
+
+export type TonePreference =
+  | "encouraging"
+  | "neutral"
+  | "informative"
+  | "friendly"
+  | "humorous";
+
+export type ReasoningFramework =
+  | "deductive"
+  | "inductive"
+  | "abductive"
+  | "analogical"
+  | "causal";
+
+/** Complete 5-dimension Ranedeer-style learner profile */
+export interface UserLearningProfile {
+  depth: DepthLevel;
+  learningStyle: LearningStyleLabel;
+  communication: CommunicationStyle;
+  tone: TonePreference;
+  reasoning: ReasoningFramework;
+  /** true = APE inferred this profile; false = user explicitly set it */
+  inferred: boolean;
+  /** 0-1 APE confidence in current inference */
+  inferenceConfidence: number;
+  /** ISO timestamp of last APE update */
+  lastUpdatedAt: number;
+}
+
+// ---------- Adaptive Prompt Engine (APE) ------------------------------------
+// Based on: ProfiLLM (arXiv:2506.13980), USP (ACL 2025)
+
+export type FeynmanMode =
+  | "explainer"   // AI teaches with adaptive depth (default)
+  | "student"     // AI plays confused student; user teaches (LbT NeurIPS 2024)
+  | "socratic"    // AI only asks guiding questions (SocraticLM NeurIPS 2024)
+  | "rubber_duck"; // AI listens, minimal probes; user thinks aloud
+
+/** Raw output of one APE analysis cycle (every 5 conversation turns) */
+export interface APEAnalysis {
+  inferredDepth: DepthLevel;
+  inferredLearningStyle: LearningStyleLabel;
+  inferredCommunication: CommunicationStyle;
+  /** 0-1: presence of confusion markers ("I don't understand", repeated Qs) */
+  confusionLevel: number;
+  /** 0-1: engagement quality (message length, follow-up questions) */
+  engagementLevel: number;
+  /** concept labels actively discussed (not merely mentioned) */
+  conceptsMentioned: string[];
+  /**
+   * Mode the APE recommends switching to:
+   * - confusion > 0.7 → "explainer"
+   * - mastery signals → "student"
+   * - "why" questions → "socratic"
+   */
+  suggestedModeSwitch: FeynmanMode | null;
+  /** overall confidence of this analysis round */
+  confidence: number;
+}
+
+/** Compressed summary of a session, used to reduce context-window pressure */
+export interface ConversationMemoryMemo {
+  sessionId: string;
+  summary: string;              // ≤200 word semantic summary
+  keyConceptsCovered: string[];
+  unresolved: string[];         // topics student is still confused about
+  profileSnapshot: UserLearningProfile;
+  createdAt: number;
+}
+
+// ---------- Feynman Mode Engine ----------------------------------------------
+// Based on: arXiv:2506.09055, NeurIPS 2024 LbT, SocraticLM NeurIPS 2024
+
+export interface FeynmanModeConfig {
+  mode: FeynmanMode;
+  profile: UserLearningProfile;
+  currentTopic: string;
+  knownConcepts: string[];
+  inProgressConcepts: string[];
+  language?: string;
+}
+
+export interface FeynmanSystemPrompt {
+  mode: FeynmanMode;
+  systemPrompt: string;
+  modeDescription: string;
+  suggestedStarters: string[];
+}
+
+export interface ParsedCommand {
+  command: string;
+  argument?: string;
+  valid: boolean;
+  errorMessage?: string;
+}
+
+// ---------- Half-Life Regression Spaced Repetition ---------------------------
+// Based on: Settles & Meeder 2016 (arXiv:1605.06065), SM-2, Wilson et al. 2019
+
+export interface HLRState {
+  conceptId: string;
+  /** estimated half-life in days — personalised per concept per student */
+  halfLifeDays: number;
+  /** SM-2 ease factor (≥1.3) */
+  easeFactor: number;
+  /** current review interval in days */
+  intervalDays: number;
+  /** number of consecutive correct reviews */
+  consecutiveCorrect: number;
+  /** last review timestamp */
+  lastReviewAt: number;
+  /** next scheduled review timestamp */
+  nextReviewAt: number;
+  /** predicted retention fraction at next review time (0-1) */
+  predictedRetention: number;
+  /** total reviews ever done for this concept */
+  totalReviews: number;
+  /** fraction of reviews that were correct (0-1) */
+  correctFraction: number;
+}
+
+export interface ReviewSchedule {
+  conceptId: string;
+  dueAt: number;
+  priority: "overdue" | "due_today" | "upcoming";
+  predictedRetention: number;
+  intervalDays: number;
+}
+
+export interface OptimalChallengeZone {
+  /** true if concept is in 85%-rule optimal zone (Wilson et al. 2019) */
+  inOptimalZone: boolean;
+  /** current estimated accuracy rate (0-1) */
+  currentAccuracy: number;
+  /** recommended action */
+  recommendation: "advance" | "stay" | "review" | "remediate";
+}
+
+// ---------- Dynamic Concept Extractor ----------------------------------------
+// Based on: arXiv:2510.20345 (LLM-empowered KG construction)
+
+export interface ExtractedConcept {
+  label: string;
+  /** initial cold-start mastery probability = 0.10 */
+  initialMastery: number;
+  prerequisiteOf: string[];
+  relatesTo: string[];
+  complexityLevel: number; // 1-10
+  /** true if this concept was newly discovered (not in prior graph) */
+  isNew: boolean;
+}
+
+export interface ExtractionResult {
+  concepts: ExtractedConcept[];
+  newConceptLabels: string[];
+  updatedAt: number;
+}
+
+// ---------- Mastery Gate Controller ------------------------------------------
+// Based on: Bloom (1984) Mastery Learning, Wilson et al. (2019) 85%-Rule
+
+export type MasteryGateStatus =
+  | "locked"         // prerequisites not met
+  | "available"      // prerequisites met, not yet attempted
+  | "in_progress"    // student is working on this concept
+  | "mastered"       // p_mastered >= MASTERY_THRESHOLD (0.85)
+  | "needs_review";  // mastered but review overdue (forgetting curve)
+
+export interface MasteryGate {
+  conceptId: string;
+  status: MasteryGateStatus;
+  pMastered: number;             // current Bayesian mastery probability
+  correctAttempts: number;
+  totalAttempts: number;
+  /** accuracy rate = correctAttempts / totalAttempts (0-1) */
+  accuracyRate: number;
+  /** true if pMastered >= 0.85 (Bloom's mastery threshold) */
+  gatePassed: boolean;
+  prerequisitesMet: boolean;
+  unmetPrerequisites: string[];
+  lastAttemptAt: number;
+  masteredAt?: number;
+}
+
+export interface CorrectiveLoopEntry {
+  conceptId: string;
+  wrongAnswerAt: number;
+  /** the specific knowledge gap identified */
+  gapDescription: string;
+  /** targeted re-explanation provided */
+  correctionProvided: string;
+  /** variant question to retry after correction */
+  retryQuestionId: string;
+  resolved: boolean;
+}
+
+export interface LearningPathAdvancement {
+  fromConceptId: string;
+  toConceptId: string;
+  advancedAt: number;
+  triggerReason: "mastery_gate_passed" | "teacher_override" | "prerequisite_complete";
+  masteryAtAdvancement: number;
+}
