@@ -24,8 +24,8 @@ export interface GeminiResponse {
 }
 
 export class GeminiClientService {
-  private static API_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent";
-  private static MODEL = "gemini-1.5-pro";
+  private static API_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+  private static MODEL = "gemini-2.0-flash";
 
   /**
    * Get API key from AsyncStorage

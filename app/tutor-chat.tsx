@@ -6,7 +6,7 @@
 
 import { ScrollView, Text, View, TouchableOpacity, TextInput, ActivityIndicator, Platform } from "react-native";
 import { useEffect, useState, useRef } from "react";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import { AITutorService } from "@/lib/services/ai-tutor";
@@ -25,6 +25,7 @@ interface ChatMessage {
 
 export default function TutorChatScreen() {
   const colors = useColors();
+  const router = useRouter();
   const { conceptId } = useLocalSearchParams<{ conceptId: string }>();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState("");
@@ -126,14 +127,16 @@ export default function TutorChatScreen() {
     }
   };
 
-  const handleTeachBack = async () => {
-    // Navigate to teach-back screen
-    // TODO: Implement navigation
+  const handleTeachBack = () => {
+    if (concept) {
+      router.push({ pathname: "/teach-back", params: { conceptId: concept.id } });
+    }
   };
 
-  const handleTakeQuiz = async () => {
-    // Navigate to quiz screen
-    // TODO: Implement navigation
+  const handleTakeQuiz = () => {
+    if (concept) {
+      router.push({ pathname: "/active-recall-quiz", params: { conceptIds: concept.id } });
+    }
   };
 
   if (!concept) {

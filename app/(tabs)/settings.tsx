@@ -3,8 +3,10 @@
  * User preferences, notifications, spaced repetition customization, and data management
  */
 
-import { ScrollView, Text, View, TouchableOpacity, Switch, Platform } from "react-native";
+import { ScrollView, Text, View, TouchableOpacity, Switch, Platform, Alert } from "react-native";
 import { useState } from "react";
+import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
@@ -23,6 +25,7 @@ interface SettingsState {
 
 export default function SettingsScreen() {
   const colors = useColors();
+  const router = useRouter();
   const [settings, setSettings] = useState<SettingsState>({
     notificationsEnabled: true,
     dailyReminder: true,
@@ -48,14 +51,36 @@ export default function SettingsScreen() {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    // TODO: Implement data export
+    Alert.alert("Export Data", "Data export feature coming soon.");
   };
 
   const handleClearData = () => {
     if (Platform.OS !== "web") {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     }
-    // TODO: Implement data clearing with confirmation
+    Alert.alert(
+      "Clear All Data",
+      "This will delete all learning progress, memory states, and documents. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear Everything",
+          style: "destructive",
+          onPress: async () => {
+            await AsyncStorage.clear();
+            Alert.alert("Cleared", "All data has been removed.");
+          },
+        },
+      ]
+    );
+  };
+
+  const handleManageAPIKey = () => {
+    router.push("/api-setup");
+  };
+
+  const handleDocumentUpload = () => {
+    router.push("/document-upload");
   };
 
   const SettingRow = ({
@@ -241,6 +266,18 @@ export default function SettingsScreen() {
           <Text className="px-4 py-2 text-sm font-semibold text-muted uppercase">
             Data Management
           </Text>
+          <SettingButton
+            icon="vpn-key"
+            label="Manage API Key"
+            description="Update your Gemini API key"
+            onPress={handleManageAPIKey}
+          />
+          <SettingButton
+            icon="library-books"
+            label="Document Knowledge Base"
+            description="Upload PDFs and documents for RAG-powered tutoring"
+            onPress={handleDocumentUpload}
+          />
           <SettingButton
             icon="download"
             label="Export Learning Data"

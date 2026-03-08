@@ -6,6 +6,9 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
+import { aiRouter } from "../ai-routes";
+import { deepTutorRouter } from "../deeptutor-routes";
+import { ragRouter } from "../rag-routes";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -39,7 +42,7 @@ async function startServer() {
     res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
     res.header(
       "Access-Control-Allow-Headers",
-      "Origin, X-Requested-With, Content-Type, Accept, Authorization",
+      "Origin, X-Requested-With, Content-Type, Accept, Authorization, x-gemini-api-key",
     );
     res.header("Access-Control-Allow-Credentials", "true");
 
@@ -59,6 +62,15 @@ async function startServer() {
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true, timestamp: Date.now() });
   });
+
+  // AI Tutor routes (Gemini-powered Feynman teaching)
+  app.use("/api/ai", aiRouter);
+
+  // DeepTutor multi-agent routes
+  app.use("/api/deeptutor", deepTutorRouter);
+
+  // RAG: document upload + real Gemini embeddings + hybrid search
+  app.use("/api/rag", ragRouter);
 
   app.use(
     "/api/trpc",

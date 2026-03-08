@@ -1,10 +1,16 @@
 /**
  * RAG Pipeline Service
- * Implements Retrieval-Augmented Generation for document-based learning
- * Inspired by DeepTutor's LightRAG architecture
+ * Implements Retrieval-Augmented Generation for document-based learning.
+ * Inspired by DeepTutor's LightRAG architecture.
+ *
+ * Embeddings now use real Gemini text-embedding-004 vectors (768-dim) via the
+ * server proxy at /api/rag/embed — giving genuine semantic retrieval quality
+ * instead of the previous hash-based approximation.
  */
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const API_BASE = process.env.EXPO_PUBLIC_API_BASE || "http://127.0.0.1:3000";
 
 export interface Document {
   id: string;
@@ -19,7 +25,7 @@ export interface EmbeddingVector {
   documentId: string;
   chunkId: string;
   text: string;
-  embedding: number[]; // Simplified - in production use real embeddings
+  embedding: number[]; // 768-dim Gemini text-embedding-004 vectors (via /api/rag/embed)
   metadata: Record<string, unknown>;
 }
 
@@ -41,9 +47,60 @@ export interface KnowledgeBase {
   updatedAt: number;
 }
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+async function getApiKey(): Promise<string> {
+  return (await AsyncStorage.getItem("GEMINI_API_KEY")) ?? "";
+}
+
+async function apiHeaders(): Promise<Record<string, string>> {
+  const key = await getApiKey();
+  return {
+    "Content-Type": "application/json",
+    ...(key ? { "x-gemini-api-key": key } : {}),
+  };
+}
+
 /**
- * RAG Pipeline Service for document-based learning
- * Handles document upload, embedding, retrieval, and citation
+ * Get a real 768-dim Gemini embedding for `text` via the server proxy.
+ * Falls back to a zero vector if the call fails (degraded but non-crashing).
+ */
+async function getEmbedding(text: string): Promise<number[]> {
+  try {
+    const res = await fetch(`${API_BASE}/api/rag/embed`, {
+      method: "POST",
+      headers: await apiHeaders(),
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) throw new Error(`embed ${res.status}`);
+    const data = await res.json() as { embedding: number[] };
+    return data.embedding;
+  } catch {
+    return new Array(768).fill(0);
+  }
+}
+
+function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length || a.length === 0) return 0;
+  let dot = 0, normA = 0, normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  const denom = Math.sqrt(normA) * Math.sqrt(normB);
+  return denom === 0 ? 0 : dot / denom;
+}
+
+// ---------------------------------------------------------------------------
+// RAG Pipeline Service
+// ---------------------------------------------------------------------------
+
+/**
+ * RAG Pipeline Service for document-based learning.
+ * Handles document upload, real-embedding generation, retrieval, and citation.
  */
 export class RAGPipelineService {
   private knowledgeBases: Map<string, KnowledgeBase> = new Map();
@@ -53,9 +110,6 @@ export class RAGPipelineService {
     this.loadKnowledgeBases();
   }
 
-  /**
-   * Load knowledge bases from storage
-   */
   private async loadKnowledgeBases(): Promise<void> {
     try {
       const stored = await AsyncStorage.getItem(this.storageKey);
@@ -68,9 +122,6 @@ export class RAGPipelineService {
     }
   }
 
-  /**
-   * Save knowledge bases to storage
-   */
   private async saveKnowledgeBases(): Promise<void> {
     try {
       const data = Object.fromEntries(this.knowledgeBases);
@@ -80,9 +131,6 @@ export class RAGPipelineService {
     }
   }
 
-  /**
-   * Create a new knowledge base
-   */
   async createKnowledgeBase(name: string, description: string): Promise<KnowledgeBase> {
     const kb: KnowledgeBase = {
       id: `kb_${Date.now()}`,
@@ -93,15 +141,11 @@ export class RAGPipelineService {
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
-
     this.knowledgeBases.set(kb.id, kb);
     await this.saveKnowledgeBases();
     return kb;
   }
 
-  /**
-   * Add document to knowledge base
-   */
   async addDocument(
     kbId: string,
     title: string,
@@ -110,9 +154,7 @@ export class RAGPipelineService {
     source: string
   ): Promise<Document> {
     const kb = this.knowledgeBases.get(kbId);
-    if (!kb) {
-      throw new Error(`Knowledge base ${kbId} not found`);
-    }
+    if (!kb) throw new Error(`Knowledge base ${kbId} not found`);
 
     const doc: Document = {
       id: `doc_${Date.now()}`,
@@ -124,54 +166,40 @@ export class RAGPipelineService {
     };
 
     kb.documents.push(doc);
-
-    // Generate embeddings for document chunks
     await this.generateEmbeddings(kbId, doc);
 
     kb.updatedAt = Date.now();
     this.knowledgeBases.set(kbId, kb);
     await this.saveKnowledgeBases();
-
     return doc;
   }
 
-  /**
-   * Generate embeddings for document chunks
-   * In production, use real embedding models like text-embedding-3-large
-   */
   private async generateEmbeddings(kbId: string, doc: Document): Promise<void> {
     const kb = this.knowledgeBases.get(kbId);
     if (!kb) return;
 
-    // Split document into chunks (simplified)
     const chunks = this.chunkDocument(doc.content);
 
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
-      const embedding: EmbeddingVector = {
+      // Use real Gemini embeddings via server proxy
+      const embedding = await getEmbedding(chunk);
+
+      kb.embeddings.push({
         documentId: doc.id,
         chunkId: `chunk_${i}`,
         text: chunk,
-        embedding: this.simpleEmbedding(chunk), // Simplified embedding
-        metadata: {
-          chunkIndex: i,
-          totalChunks: chunks.length,
-          source: doc.source,
-        },
-      };
-
-      kb.embeddings.push(embedding);
+        embedding,
+        metadata: { chunkIndex: i, totalChunks: chunks.length, source: doc.source },
+      });
     }
   }
 
-  /**
-   * Split document into chunks
-   */
   private chunkDocument(content: string, chunkSize: number = 500): string[] {
     const chunks: string[] = [];
     const sentences = content.split(/[.!?]+/).filter((s) => s.trim().length > 0);
-
     let currentChunk = "";
+
     for (const sentence of sentences) {
       if ((currentChunk + sentence).length > chunkSize && currentChunk.length > 0) {
         chunks.push(currentChunk.trim());
@@ -180,182 +208,88 @@ export class RAGPipelineService {
         currentChunk += sentence + ". ";
       }
     }
-
-    if (currentChunk.length > 0) {
-      chunks.push(currentChunk.trim());
-    }
-
-    return chunks;
+    if (currentChunk.length > 0) chunks.push(currentChunk.trim());
+    return chunks.length > 0 ? chunks : [content.slice(0, chunkSize)];
   }
 
-  /**
-   * Simple embedding function (in production, use real embeddings)
-   */
-  private simpleEmbedding(text: string): number[] {
-    // Simplified: use hash-based embedding
-    const embedding: number[] = new Array(128).fill(0);
-
-    for (let i = 0; i < text.length; i++) {
-      const charCode = text.charCodeAt(i);
-      embedding[i % 128] += charCode / 256;
-    }
-
-    return embedding.map((v) => v / text.length);
-  }
-
-  /**
-   * Calculate cosine similarity between embeddings
-   */
-  private cosineSimilarity(a: number[], b: number[]): number {
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-
-    for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
-    }
-
-    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-  }
-
-  /**
-   * Retrieve relevant documents for a query
-   */
   async retrieve(kbId: string, query: string, topK: number = 5): Promise<RAGResult[]> {
     const kb = this.knowledgeBases.get(kbId);
-    if (!kb) {
-      throw new Error(`Knowledge base ${kbId} not found`);
-    }
+    if (!kb) throw new Error(`Knowledge base ${kbId} not found`);
 
-    // Generate query embedding
-    const queryEmbedding = this.simpleEmbedding(query);
+    const queryEmbedding = await getEmbedding(query);
 
-    // Calculate similarity scores
-    const results: Array<{ embedding: EmbeddingVector; score: number }> = [];
+    const results = kb.embeddings.map((emb) => ({
+      emb,
+      score: cosineSimilarity(queryEmbedding, emb.embedding),
+    }));
 
-    for (const embedding of kb.embeddings) {
-      const score = this.cosineSimilarity(queryEmbedding, embedding.embedding);
-      results.push({ embedding, score });
-    }
-
-    // Sort by relevance and return top K
     results.sort((a, b) => b.score - a.score);
 
-    return results.slice(0, topK).map((result) => {
-      const doc = kb.documents.find((d) => d.id === result.embedding.documentId);
+    return results.slice(0, topK).map(({ emb, score }) => {
+      const doc = kb.documents.find((d) => d.id === emb.documentId);
       return {
-        text: result.embedding.text,
-        source: doc?.source || "Unknown",
-        documentId: result.embedding.documentId,
-        relevanceScore: result.score,
-        citation: `${doc?.title || "Document"} (${doc?.source || "Unknown source"})`,
+        text: emb.text,
+        source: doc?.source ?? "Unknown",
+        documentId: emb.documentId,
+        relevanceScore: score,
+        citation: `${doc?.title ?? "Document"} (${doc?.source ?? "Unknown source"})`,
       };
     });
   }
 
-  /**
-   * Hybrid search combining keyword and semantic search
-   */
   async hybridSearch(kbId: string, query: string, topK: number = 5): Promise<RAGResult[]> {
-    // Semantic search
     const semanticResults = await this.retrieve(kbId, query, topK * 2);
 
-    // Keyword search
-    const keywordResults = this.keywordSearch(kbId, query, topK * 2);
+    const kb = this.knowledgeBases.get(kbId);
+    if (!kb) return semanticResults.slice(0, topK);
 
-    // Merge and deduplicate
+    const keywords = query.toLowerCase().split(/\s+/);
+    const keywordResults = kb.embeddings
+      .map((emb) => {
+        const lowerText = emb.text.toLowerCase();
+        const score = keywords.reduce((acc, kw) => acc + (lowerText.includes(kw) ? 1 : 0), 0) / keywords.length;
+        return { emb, score };
+      })
+      .filter((r) => r.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, topK * 2)
+      .map(({ emb, score }) => {
+        const doc = kb.documents.find((d) => d.id === emb.documentId);
+        return {
+          text: emb.text,
+          source: doc?.source ?? "Unknown",
+          documentId: emb.documentId,
+          relevanceScore: score,
+          citation: `${doc?.title ?? "Document"} (${doc?.source ?? "Unknown source"})`,
+        };
+      });
+
     const merged = new Map<string, RAGResult>();
-
-    for (const result of semanticResults) {
-      merged.set(result.documentId, result);
-    }
-
-    for (const result of keywordResults) {
-      if (!merged.has(result.documentId)) {
-        merged.set(result.documentId, result);
-      }
-    }
+    for (const r of semanticResults) merged.set(r.documentId + r.text, r);
+    for (const r of keywordResults) if (!merged.has(r.documentId + r.text)) merged.set(r.documentId + r.text, r);
 
     return Array.from(merged.values()).slice(0, topK);
   }
 
-  /**
-   * Keyword-based search
-   */
-  private keywordSearch(kbId: string, query: string, topK: number): RAGResult[] {
-    const kb = this.knowledgeBases.get(kbId);
-    if (!kb) return [];
-
-    const keywords = query.toLowerCase().split(/\s+/);
-    const results: Array<{ embedding: EmbeddingVector; score: number }> = [];
-
-    for (const embedding of kb.embeddings) {
-      let score = 0;
-      const text = embedding.text.toLowerCase();
-
-      for (const keyword of keywords) {
-        const matches = (text.match(new RegExp(keyword, "g")) || []).length;
-        score += matches;
-      }
-
-      if (score > 0) {
-        results.push({ embedding, score });
-      }
-    }
-
-    results.sort((a, b) => b.score - a.score);
-
-    return results.slice(0, topK).map((result) => {
-      const doc = kb.documents.find((d) => d.id === result.embedding.documentId);
-      return {
-        text: result.embedding.text,
-        source: doc?.source || "Unknown",
-        documentId: result.embedding.documentId,
-        relevanceScore: Math.min(result.score / 10, 1), // Normalize score
-        citation: `${doc?.title || "Document"} (${doc?.source || "Unknown source"})`,
-      };
-    });
-  }
-
-  /**
-   * Get all knowledge bases
-   */
   getKnowledgeBases(): KnowledgeBase[] {
     return Array.from(this.knowledgeBases.values());
   }
 
-  /**
-   * Get knowledge base by ID
-   */
   getKnowledgeBase(kbId: string): KnowledgeBase | undefined {
     return this.knowledgeBases.get(kbId);
   }
 
-  /**
-   * Delete knowledge base
-   */
   async deleteKnowledgeBase(kbId: string): Promise<void> {
     this.knowledgeBases.delete(kbId);
     await this.saveKnowledgeBases();
   }
 
-  /**
-   * Export knowledge base as JSON
-   */
   exportKnowledgeBase(kbId: string): string {
     const kb = this.knowledgeBases.get(kbId);
-    if (!kb) {
-      throw new Error(`Knowledge base ${kbId} not found`);
-    }
-
+    if (!kb) throw new Error(`Knowledge base ${kbId} not found`);
     return JSON.stringify(kb, null, 2);
   }
 
-  /**
-   * Import knowledge base from JSON
-   */
   async importKnowledgeBase(jsonData: string): Promise<KnowledgeBase> {
     const kb = JSON.parse(jsonData) as KnowledgeBase;
     this.knowledgeBases.set(kb.id, kb);
@@ -364,5 +298,5 @@ export class RAGPipelineService {
   }
 }
 
-// Export singleton instance
 export const ragPipeline = new RAGPipelineService();
+

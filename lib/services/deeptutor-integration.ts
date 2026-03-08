@@ -4,6 +4,7 @@
  * for advanced question generation and skill transfer learning
  */
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Concept, QuizQuestion, ConceptMemoryState } from "@/lib/types/learning";
 
 /**
@@ -12,6 +13,28 @@ import { Concept, QuizQuestion, ConceptMemoryState } from "@/lib/types/learning"
  */
 export class DeepTutorIntegrationService {
   private static readonly API_BASE = process.env.EXPO_PUBLIC_API_BASE || "http://127.0.0.1:3000";
+
+  private static async apiKeyHeaders(): Promise<Record<string, string>> {
+    const key = (await AsyncStorage.getItem("GEMINI_API_KEY")) ?? "";
+    return key ? { "x-gemini-api-key": key } : {};
+  }
+
+  private static async post<T>(path: string, body: unknown): Promise<T> {
+    const headers = {
+      "Content-Type": "application/json",
+      ...(await this.apiKeyHeaders()),
+    };
+    const response = await fetch(`${this.API_BASE}${path}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`DeepTutor API error ${response.status}: ${errText}`);
+    }
+    return response.json() as Promise<T>;
+  }
 
   /**
    * QuestionGen Module: Generate adaptive quiz questions based on forgetting curve
@@ -31,21 +54,13 @@ export class DeepTutorIntegrationService {
         return { conceptId: id, decayFactor, masteryLevel: state?.masteryLevel || "novice" };
       });
 
-      const response = await fetch(`${this.API_BASE}/api/deeptutor/questiongen`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          concepts: conceptsWithDecay,
-          difficulty,
-          questionCount: count,
-          // Trigger pop-up quiz on high decay (concepts being forgotten)
-          triggerPopupOnHighDecay: true,
-          decayThreshold: 40, // Trigger quiz if retention < 60%
-        }),
+      const data = await this.post<{ questions: QuizQuestion[] }>("/api/deeptutor/questiongen", {
+        concepts: conceptsWithDecay,
+        difficulty,
+        questionCount: count,
+        triggerPopupOnHighDecay: true,
+        decayThreshold: 40,
       });
-
-      if (!response.ok) throw new Error("Failed to generate adaptive questions");
-      const data = await response.json();
       return data.questions || [];
     } catch (error) {
       console.error("Error generating adaptive questions:", error);
@@ -67,18 +82,11 @@ export class DeepTutorIntegrationService {
     transferableSkills: string[];
   }> {
     try {
-      const response = await fetch(`${this.API_BASE}/api/deeptutor/knowledge-graph`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          conceptName,
-          conceptDescription,
-          includeTransferLearning: true,
-        }),
+      return await this.post("/api/deeptutor/knowledge-graph", {
+        conceptName,
+        conceptDescription,
+        includeTransferLearning: true,
       });
-
-      if (!response.ok) throw new Error("Failed to get concept relationships");
-      return await response.json();
     } catch (error) {
       console.error("Error getting concept relationships:", error);
       throw error;
@@ -101,20 +109,13 @@ export class DeepTutorIntegrationService {
     commonMisconceptions: string[];
   }> {
     try {
-      const response = await fetch(`${this.API_BASE}/api/deeptutor/deep-research`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          conceptName,
-          relatedConcepts,
-          researchDepth: depth,
-          includeApplications: true,
-          includeMisconceptions: true,
-        }),
+      return await this.post("/api/deeptutor/deep-research", {
+        conceptName,
+        relatedConcepts,
+        researchDepth: depth,
+        includeApplications: true,
+        includeMisconceptions: true,
       });
-
-      if (!response.ok) throw new Error("Failed to generate deep research explanation");
-      return await response.json();
     } catch (error) {
       console.error("Error generating deep research explanation:", error);
       throw error;
@@ -122,12 +123,11 @@ export class DeepTutorIntegrationService {
   }
 
   /**
-   * Skill Transfer Engine: Map core schemas (e.g., C programming, Linux architecture)
-   * and use them to explain new complex topics through analogies and connections
+   * Skill Transfer Engine: Map core schemas and explain via analogies
    */
   static async generateSkillTransferExplanation(
     newConcept: string,
-    coreSchemas: string[], // e.g., ["C programming", "Linux architecture"]
+    coreSchemas: string[],
     studentBackground: string[]
   ): Promise<{
     explanation: string;
@@ -136,20 +136,13 @@ export class DeepTutorIntegrationService {
     practiceProblems: string[];
   }> {
     try {
-      const response = await fetch(`${this.API_BASE}/api/deeptutor/skill-transfer`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          newConcept,
-          coreSchemas,
-          studentBackground,
-          includeAnalogies: true,
-          includePracticeProblems: true,
-        }),
+      return await this.post("/api/deeptutor/skill-transfer", {
+        newConcept,
+        coreSchemas,
+        studentBackground,
+        includeAnalogies: true,
+        includePracticeProblems: true,
       });
-
-      if (!response.ok) throw new Error("Failed to generate skill transfer explanation");
-      return await response.json();
     } catch (error) {
       console.error("Error generating skill transfer explanation:", error);
       throw error;
@@ -158,7 +151,6 @@ export class DeepTutorIntegrationService {
 
   /**
    * Multi-Agent Problem Solving: Decompose complex problems into steps
-   * using DeepTutor's multi-agent architecture
    */
   static async solveComplexProblem(
     problem: string,
@@ -166,29 +158,17 @@ export class DeepTutorIntegrationService {
     relatedConcepts: string[]
   ): Promise<{
     steps: string[];
-    agentResponses: Array<{
-      agent: string;
-      role: string;
-      contribution: string;
-    }>;
+    agentResponses: Array<{ agent: string; role: string; contribution: string }>;
     keyInsights: string[];
     alternativeSolutions: string[];
   }> {
     try {
-      const response = await fetch(`${this.API_BASE}/api/deeptutor/multi-agent-solve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          problem,
-          conceptId,
-          relatedConcepts,
-          // Multi-agent roles: Analyzer, Solver, Validator, Explainer
-          agents: ["analyzer", "solver", "validator", "explainer"],
-        }),
+      return await this.post("/api/deeptutor/multi-agent-solve", {
+        problem,
+        conceptId,
+        relatedConcepts,
+        agents: ["analyzer", "solver", "validator", "explainer"],
       });
-
-      if (!response.ok) throw new Error("Failed to solve problem with multi-agent system");
-      return await response.json();
     } catch (error) {
       console.error("Error solving complex problem:", error);
       throw error;
@@ -197,7 +177,6 @@ export class DeepTutorIntegrationService {
 
   /**
    * Exercise Generator: Create customized practice problems
-   * that match student's mastery level and learning style
    */
   static async generatePracticeExercises(
     conceptIds: string[],
@@ -215,21 +194,10 @@ export class DeepTutorIntegrationService {
     }>
   > {
     try {
-      const response = await fetch(`${this.API_BASE}/api/deeptutor/exercise-gen`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          conceptIds,
-          masteryLevels,
-          learningStyle,
-          exerciseCount: count,
-          includeHints: true,
-          includeSolutions: true,
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to generate practice exercises");
-      const data = await response.json();
+      const data = await this.post<{ exercises: Array<{ id: string; problem: string; difficulty: string; hints: string[]; solution: string; explanation: string }> }>(
+        "/api/deeptutor/exercise-gen",
+        { conceptIds, masteryLevels, learningStyle, exerciseCount: count, includeHints: true, includeSolutions: true }
+      );
       return data.exercises || [];
     } catch (error) {
       console.error("Error generating practice exercises:", error);
@@ -238,35 +206,22 @@ export class DeepTutorIntegrationService {
   }
 
   /**
-   * Idea Generation: Brainstorm novel applications and connections
-   * for learned concepts using DeepTutor's synthesis engine
+   * Idea Generation: Brainstorm novel applications across domains
    */
   static async generateIdeaConnections(
     conceptName: string,
     domains: string[] = ["science", "technology", "business", "art"]
   ): Promise<{
-    ideas: Array<{
-      domain: string;
-      application: string;
-      novelty: number; // 0-1 score
-      feasibility: number; // 0-1 score
-    }>;
+    ideas: Array<{ domain: string; application: string; novelty: number; feasibility: number }>;
     crossDomainConnections: string[];
     researchOpportunities: string[];
   }> {
     try {
-      const response = await fetch(`${this.API_BASE}/api/deeptutor/idea-gen`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          conceptName,
-          domains,
-          includeResearchOpportunities: true,
-        }),
+      return await this.post("/api/deeptutor/idea-gen", {
+        conceptName,
+        domains,
+        includeResearchOpportunities: true,
       });
-
-      if (!response.ok) throw new Error("Failed to generate idea connections");
-      return await response.json();
     } catch (error) {
       console.error("Error generating idea connections:", error);
       throw error;
@@ -274,8 +229,7 @@ export class DeepTutorIntegrationService {
   }
 
   /**
-   * Personal Knowledge Base: Build and manage user's knowledge repository
-   * with persistent storage and retrieval
+   * Personal Knowledge Base: Save entry
    */
   static async saveToKnowledgeBase(
     userId: string,
@@ -284,20 +238,9 @@ export class DeepTutorIntegrationService {
     tags: string[]
   ): Promise<{ success: boolean; id: string }> {
     try {
-      const response = await fetch(`${this.API_BASE}/api/deeptutor/knowledge-base/save`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId,
-          conceptId,
-          notes,
-          tags,
-          timestamp: Date.now(),
-        }),
+      return await this.post("/api/deeptutor/knowledge-base/save", {
+        userId, conceptId, notes, tags, timestamp: Date.now(),
       });
-
-      if (!response.ok) throw new Error("Failed to save to knowledge base");
-      return await response.json();
     } catch (error) {
       console.error("Error saving to knowledge base:", error);
       throw error;
@@ -305,34 +248,20 @@ export class DeepTutorIntegrationService {
   }
 
   /**
-   * Retrieve from Personal Knowledge Base
+   * Personal Knowledge Base: Search
    */
   static async retrieveFromKnowledgeBase(
     userId: string,
     query: string,
     limit: number = 10
   ): Promise<
-    Array<{
-      id: string;
-      conceptId: string;
-      notes: string;
-      tags: string[];
-      relevanceScore: number;
-    }>
+    Array<{ id: string; conceptId: string; notes: string; tags: string[]; relevanceScore: number }>
   > {
     try {
-      const response = await fetch(`${this.API_BASE}/api/deeptutor/knowledge-base/search`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId,
-          query,
-          limit,
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to retrieve from knowledge base");
-      const data = await response.json();
+      const data = await this.post<{ results: Array<{ id: string; conceptId: string; notes: string; tags: string[]; relevanceScore: number }> }>(
+        "/api/deeptutor/knowledge-base/search",
+        { userId, query, limit }
+      );
       return data.results || [];
     } catch (error) {
       console.error("Error retrieving from knowledge base:", error);

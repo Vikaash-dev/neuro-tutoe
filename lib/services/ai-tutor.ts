@@ -4,14 +4,39 @@
  * Implements DeepTutor's multi-agent problem solving approach
  */
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Concept, AITutorResponse, StudentMentalModel, ConceptExplanation } from "@/lib/types/learning";
 
 /**
  * AI Tutor Service
- * Communicates with backend LLM service (Gemini via Manus server)
+ * Communicates with backend LLM service (Gemini via server proxy)
  */
 export class AITutorService {
   private static readonly API_BASE = process.env.EXPO_PUBLIC_API_BASE || "http://127.0.0.1:3000";
+
+  /** Read the Gemini API key stored by the user and return it as a header map. */
+  private static async apiKeyHeaders(): Promise<Record<string, string>> {
+    const key = (await AsyncStorage.getItem("GEMINI_API_KEY")) ?? "";
+    return key ? { "x-gemini-api-key": key } : {};
+  }
+
+  /** POST helper that always includes the Gemini key header. */
+  private static async post<T>(path: string, body: unknown): Promise<T> {
+    const headers = {
+      "Content-Type": "application/json",
+      ...(await this.apiKeyHeaders()),
+    };
+    const response = await fetch(`${this.API_BASE}${path}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`API error ${response.status}: ${errText}`);
+    }
+    return response.json() as Promise<T>;
+  }
 
   /**
    * Generate Feynman-style simple explanation for a concept
@@ -21,28 +46,16 @@ export class AITutorService {
     concept: Concept,
     mentalModel: StudentMentalModel
   ): Promise<ConceptExplanation> {
-    try {
-      const response = await fetch(`${this.API_BASE}/api/ai/explain-simple`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          conceptName: concept.name,
-          description: concept.description,
-          keyPoints: concept.keyPoints,
-          commonMisconceptions: concept.commonMisconceptions,
-          realWorldApplications: concept.realWorldApplications,
-          learningStyle: mentalModel.learningStyle,
-          explanationDepth: mentalModel.explanationDepth,
-          communicationPreference: mentalModel.communicationPreference,
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to generate explanation");
-      return await response.json();
-    } catch (error) {
-      console.error("Error generating simple explanation:", error);
-      throw error;
-    }
+    return this.post("/api/ai/explain-simple", {
+      conceptName: concept.name,
+      description: concept.description,
+      keyPoints: concept.keyPoints,
+      commonMisconceptions: concept.commonMisconceptions,
+      realWorldApplications: concept.realWorldApplications,
+      learningStyle: mentalModel.learningStyle,
+      explanationDepth: mentalModel.explanationDepth,
+      communicationPreference: mentalModel.communicationPreference,
+    });
   }
 
   /**
@@ -61,30 +74,18 @@ export class AITutorService {
     suggestions: string[];
     refinedExplanation: string;
   }> {
-    try {
-      const response = await fetch(`${this.API_BASE}/api/ai/analyze-explanation`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          conceptId,
-          studentExplanation,
-          correctConcept: {
-            name: correctConcept.name,
-            description: correctConcept.description,
-            keyPoints: correctConcept.keyPoints,
-            commonMisconceptions: correctConcept.commonMisconceptions,
-          },
-          learningStyle: mentalModel.learningStyle,
-          communicationPreference: mentalModel.communicationPreference,
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to analyze explanation");
-      return await response.json();
-    } catch (error) {
-      console.error("Error analyzing student explanation:", error);
-      throw error;
-    }
+    return this.post("/api/ai/analyze-explanation", {
+      conceptId,
+      studentExplanation,
+      correctConcept: {
+        name: correctConcept.name,
+        description: correctConcept.description,
+        keyPoints: correctConcept.keyPoints,
+        commonMisconceptions: correctConcept.commonMisconceptions,
+      },
+      learningStyle: mentalModel.learningStyle,
+      communicationPreference: mentalModel.communicationPreference,
+    });
   }
 
   /**
@@ -97,27 +98,15 @@ export class AITutorService {
     identifiedGaps: string[],
     mentalModel: StudentMentalModel
   ): Promise<string[]> {
-    try {
-      const response = await fetch(`${this.API_BASE}/api/ai/follow-up-questions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          conceptId,
-          conceptName: concept.name,
-          identifiedGaps,
-          learningStyle: mentalModel.learningStyle,
-          explanationDepth: mentalModel.explanationDepth,
-          communicationPreference: mentalModel.communicationPreference,
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to generate follow-up questions");
-      const data = await response.json();
-      return data.questions || [];
-    } catch (error) {
-      console.error("Error generating follow-up questions:", error);
-      throw error;
-    }
+    const data = await this.post<{ questions: string[] }>("/api/ai/follow-up-questions", {
+      conceptId,
+      conceptName: concept.name,
+      identifiedGaps,
+      learningStyle: mentalModel.learningStyle,
+      explanationDepth: mentalModel.explanationDepth,
+      communicationPreference: mentalModel.communicationPreference,
+    });
+    return data.questions || [];
   }
 
   /**
@@ -129,28 +118,16 @@ export class AITutorService {
     masteryLevels: Record<string, string>,
     mentalModel: StudentMentalModel,
     count: number = 5
-  ): Promise<any[]> {
-    try {
-      const response = await fetch(`${this.API_BASE}/api/ai/generate-quiz`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          conceptIds,
-          masteryLevels,
-          learningStyle: mentalModel.learningStyle,
-          explanationDepth: mentalModel.explanationDepth,
-          communicationPreference: mentalModel.communicationPreference,
-          questionCount: count,
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to generate quiz questions");
-      const data = await response.json();
-      return data.questions || [];
-    } catch (error) {
-      console.error("Error generating quiz questions:", error);
-      throw error;
-    }
+  ): Promise<unknown[]> {
+    const data = await this.post<{ questions: unknown[] }>("/api/ai/generate-quiz", {
+      conceptIds,
+      masteryLevels,
+      learningStyle: mentalModel.learningStyle,
+      explanationDepth: mentalModel.explanationDepth,
+      communicationPreference: mentalModel.communicationPreference,
+      questionCount: count,
+    });
+    return data.questions || [];
   }
 
   /**
@@ -167,25 +144,13 @@ export class AITutorService {
     explanation: string;
     misconceptionsDetected: string[];
   }> {
-    try {
-      const response = await fetch(`${this.API_BASE}/api/ai/evaluate-answer`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          questionId,
-          userAnswer,
-          conceptId,
-          learningStyle: mentalModel.learningStyle,
-          communicationPreference: mentalModel.communicationPreference,
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to evaluate answer");
-      return await response.json();
-    } catch (error) {
-      console.error("Error evaluating answer:", error);
-      throw error;
-    }
+    return this.post("/api/ai/evaluate-answer", {
+      questionId,
+      userAnswer,
+      conceptId,
+      learningStyle: mentalModel.learningStyle,
+      communicationPreference: mentalModel.communicationPreference,
+    });
   }
 
   /**
@@ -202,25 +167,13 @@ export class AITutorService {
     keyInsights: string[];
     relatedConcepts: string[];
   }> {
-    try {
-      const response = await fetch(`${this.API_BASE}/api/ai/step-by-step-solution`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          problem,
-          conceptId,
-          learningStyle: mentalModel.learningStyle,
-          explanationDepth: mentalModel.explanationDepth,
-          communicationPreference: mentalModel.communicationPreference,
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to generate solution");
-      return await response.json();
-    } catch (error) {
-      console.error("Error generating step-by-step solution:", error);
-      throw error;
-    }
+    return this.post("/api/ai/step-by-step-solution", {
+      problem,
+      conceptId,
+      learningStyle: mentalModel.learningStyle,
+      explanationDepth: mentalModel.explanationDepth,
+      communicationPreference: mentalModel.communicationPreference,
+    });
   }
 
   /**
@@ -236,28 +189,16 @@ export class AITutorService {
     correctUnderstanding: string;
     examples: string[];
   }> {
-    try {
-      const response = await fetch(`${this.API_BASE}/api/ai/correct-misconception`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          misconception,
-          correctConcept: {
-            name: correctConcept.name,
-            description: correctConcept.description,
-            keyPoints: correctConcept.keyPoints,
-          },
-          learningStyle: mentalModel.learningStyle,
-          communicationPreference: mentalModel.communicationPreference,
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to correct misconception");
-      return await response.json();
-    } catch (error) {
-      console.error("Error correcting misconception:", error);
-      throw error;
-    }
+    return this.post("/api/ai/correct-misconception", {
+      misconception,
+      correctConcept: {
+        name: correctConcept.name,
+        description: correctConcept.description,
+        keyPoints: correctConcept.keyPoints,
+      },
+      learningStyle: mentalModel.learningStyle,
+      communicationPreference: mentalModel.communicationPreference,
+    });
   }
 
   /**
@@ -272,27 +213,13 @@ export class AITutorService {
     advancedConcepts: string[];
     applications: string[];
   }> {
-    try {
-      const response = await fetch(`${this.API_BASE}/api/ai/concept-connections`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          conceptName,
-          conceptDescription,
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to generate concept connections");
-      return await response.json();
-    } catch (error) {
-      console.error("Error generating concept connections:", error);
-      throw error;
-    }
+    return this.post("/api/ai/concept-connections", { conceptName, conceptDescription });
   }
 
   /**
-   * Adaptive tutor response based on Theory of Mind
-   * Adjusts explanation based on student's mental model
+   * Adaptive tutor response based on Theory of Mind.
+   * Adjusts explanation based on student's mental model.
+   * Automatically pulls RAG context from uploaded documents.
    */
   static async getAdaptiveTutorResponse(
     studentQuestion: string,
@@ -301,28 +228,16 @@ export class AITutorService {
     mentalModel: StudentMentalModel,
     conversationHistory: Array<{ role: string; content: string }>
   ): Promise<AITutorResponse> {
-    try {
-      const response = await fetch(`${this.API_BASE}/api/ai/adaptive-response`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          studentQuestion,
-          conceptId,
-          conceptName,
-          learningStyle: mentalModel.learningStyle,
-          communicationPreference: mentalModel.communicationPreference,
-          explanationDepth: mentalModel.explanationDepth,
-          pacePreference: mentalModel.pacePreference,
-          preferredExamples: mentalModel.preferredExamples,
-          conversationHistory,
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to get adaptive response");
-      return await response.json();
-    } catch (error) {
-      console.error("Error getting adaptive response:", error);
-      throw error;
-    }
+    return this.post("/api/ai/chat-with-rag", {
+      message: studentQuestion,
+      conceptId,
+      conceptName,
+      learningStyle: mentalModel.learningStyle,
+      communicationPreference: mentalModel.communicationPreference,
+      explanationDepth: mentalModel.explanationDepth,
+      pacePreference: mentalModel.pacePreference,
+      preferredExamples: mentalModel.preferredExamples,
+      conversationHistory,
+    });
   }
 }
