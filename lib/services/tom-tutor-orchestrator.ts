@@ -497,10 +497,9 @@ export class TomTutorAgent {
     return breakthroughPhrases.some((p) => lower.includes(p));
   }
 
-  private asyncUpdateProfile(studentId: string, sessionId: string): void {
+  private asyncUpdateProfile(studentId: string, _sessionId: string): void {
     // Fire-and-forget: never blocks the decision loop.
-    // sessionId is passed here for future use (e.g., scoped analysis or audit logs).
-    void sessionId; // explicitly acknowledged — reserved for future use
+    // _sessionId is reserved for future use (e.g., scoped analysis or audit logs).
     Promise.resolve().then(async () => {
       try {
         await this.profileManagerInstance.updateProfile(studentId);

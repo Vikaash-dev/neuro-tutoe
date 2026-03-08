@@ -488,8 +488,5 @@ export class EpistemicStateTracker {
   }
 } 
 
-// Export type so it can be imported in pedagogical-action-space
-export type { EpistemicState };
-
 // Singleton instance
 export const epistemicStateTracker = new EpistemicStateTracker();
