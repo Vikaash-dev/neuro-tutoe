@@ -226,3 +226,44 @@
 - [ ] Validate button clicks work
 - [ ] Test navigation flow
 - [ ] Test data persistence
+
+
+## Phase 22: RAG Pipeline & Document Management
+- [ ] Create document upload screen
+- [ ] Implement file parsing (PDF, TXT, MD)
+- [ ] Build vector embedding service
+- [ ] Create semantic search functionality
+- [ ] Implement citation tracking
+- [ ] Add knowledge base management
+
+## Phase 23: Web Search Integration
+- [ ] Integrate web search API
+- [ ] Build search query generator
+- [ ] Implement result ranking
+- [ ] Add source attribution
+- [ ] Create search result caching
+
+## Phase 24: Exam Question Mimicking
+- [ ] Create exam paper upload screen
+- [ ] Build question pattern analyzer
+- [ ] Implement style-matching question generator
+- [ ] Create difficulty level matching
+- [ ] Add format preservation
+
+## Phase 25: Expanded Multi-Agent System
+- [ ] Implement dual-loop reasoning (Analysis + Solve loops)
+- [ ] Add InvestigateAgent
+- [ ] Add NoteAgent
+- [ ] Add PlanAgent
+- [ ] Add ManagerAgent
+- [ ] Add SolveAgent
+- [ ] Add CheckAgent
+- [ ] Integrate with Feynman Technique
+
+## Phase 26: Code Execution for STEM
+- [ ] Build code editor component
+- [ ] Implement Python sandbox execution
+- [ ] Create code output display
+- [ ] Add error handling
+- [ ] Implement visualization support
+- [ ] Add code example library
