@@ -63,6 +63,22 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="gearshape.fill" color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="quiz"
+        options={{
+          title: "Quiz",
+          href: null,
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="checkmark.circle.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="knowledge-graph"
+        options={{
+          title: "Knowledge Graph",
+          href: null,
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="network" color={color} />,
+        }}
+      />
     </Tabs>
   );
 }

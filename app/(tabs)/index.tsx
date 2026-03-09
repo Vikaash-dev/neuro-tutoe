@@ -3,8 +3,9 @@
  * Central hub for learning activities, progress tracking, and recommendations
  */
 
-import { ScrollView, Text, View, TouchableOpacity } from "react-native";
+import { ScrollView, Text, View, TouchableOpacity, Platform } from "react-native";
 import { useEffect, useState } from "react";
+import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import { LearningEngineService } from "@/lib/services/learning-engine";
@@ -22,6 +23,7 @@ interface DashboardData {
 
 export default function HomeScreen() {
   const colors = useColors();
+  const router = useRouter();
   const [dashboardData, setDashboardData] = useState<DashboardData>({
     streak: 0,
     todayProgress: 0,
@@ -56,13 +58,58 @@ export default function HomeScreen() {
   };
 
   const handleStartLearning = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // Navigate to topic selection
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    router.navigate({
+      pathname: "/(tabs)/topic-selection",
+    });
   };
 
   const handleReviewConcept = (conceptId: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // Navigate to quiz screen for this concept
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    router.navigate({
+      pathname: "/(tabs)/quiz",
+      params: { conceptId },
+    });
+  };
+
+  const handleNavigateToProgress = () => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    router.navigate({
+      pathname: "/(tabs)/progress-mastery",
+    });
+  };
+
+  const handleNavigateToMemory = () => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    router.navigate({
+      pathname: "/(tabs)/memory-dashboard",
+    });
+  };
+
+  const handleNavigateToKnowledgeGraph = () => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    router.navigate({
+      pathname: "/(tabs)/knowledge-graph",
+    });
+  };
+
+  const handleNavigateToSettings = () => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    router.navigate({
+      pathname: "/(tabs)/settings",
+    });
   };
 
   return (
@@ -180,24 +227,28 @@ export default function HomeScreen() {
             <Text className="text-lg font-semibold text-foreground">Quick Links</Text>
             <View className="gap-2 flex-row flex-wrap">
               <TouchableOpacity
+                onPress={handleNavigateToProgress}
                 className="flex-1 rounded-xl p-3 active:opacity-70 min-w-[45%]"
                 style={{ backgroundColor: colors.surface }}
               >
                 <Text className="text-sm font-semibold text-foreground">📊 Progress</Text>
               </TouchableOpacity>
               <TouchableOpacity
+                onPress={handleNavigateToMemory}
                 className="flex-1 rounded-xl p-3 active:opacity-70 min-w-[45%]"
                 style={{ backgroundColor: colors.surface }}
               >
                 <Text className="text-sm font-semibold text-foreground">🧠 Memory</Text>
               </TouchableOpacity>
               <TouchableOpacity
+                onPress={handleNavigateToKnowledgeGraph}
                 className="flex-1 rounded-xl p-3 active:opacity-70 min-w-[45%]"
                 style={{ backgroundColor: colors.surface }}
               >
                 <Text className="text-sm font-semibold text-foreground">🔗 Knowledge Graph</Text>
               </TouchableOpacity>
               <TouchableOpacity
+                onPress={handleNavigateToSettings}
                 className="flex-1 rounded-xl p-3 active:opacity-70 min-w-[45%]"
                 style={{ backgroundColor: colors.surface }}
               >
