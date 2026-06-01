@@ -183,7 +183,16 @@
 - [x] Verify haptic feedback works
 - [x] Test all interactive elements
 
-## Phase 21: Web App Conversion
+## Phase 21: Gemini API Integration
+- [x] Create Gemini service with tutoring modes
+- [x] Add AI Tutor Chat screen with message interface
+- [x] Implement conversation history tracking
+- [x] Add 6 tutoring modes (Explainer, Socratic, Feedback, Misconception, Quiz, Application)
+- [x] Set up environment variable for API key
+- [x] Create comprehensive tests for Gemini integration
+- [x] Add tutor-chat tab to navigation
+
+## Phase 22: Web App Conversion
 - [ ] Configure Expo Web build
 - [ ] Test responsive design on desktop
 - [ ] Fix web-specific issues

@@ -36,6 +36,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="tutor-chat"
+        options={{
+          title: "Tutor",
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="topic-selection"
         options={{
           title: "Topics",
