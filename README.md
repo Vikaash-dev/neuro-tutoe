@@ -183,6 +183,13 @@ The full salvage matrix is in `docs/clone-project-analysis.md`. It maps each
 already-cloned tutor/reference repo to useful ideas, reusable code or patterns,
 rejected parts, what is already implemented here, and what remains TODO.
 
+## AI Tutor Research Cross-Reference
+
+The AI-tutor paper spine and implementation audit lives in
+`docs/ai-tutor-research-papers.md`. It connects the tutor literature, cloned
+reference ideas, devised app systems, exact local implementation files, and
+remaining research-backed TODOs.
+
 ## Run
 
 ```powershell
