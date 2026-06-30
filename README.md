@@ -193,7 +193,9 @@ remaining research-backed TODOs.
 The tutor-system design lives in `docs/tutor-system-architecture.md`. It
 explains how NeuroTutor works as a learning system: learner model, tutor policy,
 teach-back loop, quiz loop, knowledge/evidence model, memory, safety, and
-quality evaluation.
+quality evaluation. It also records the active-construction requirement: the
+tutor should prefer learner attempts, hints, retrieval, self-explanation,
+calibration, and fading over answer delivery.
 
 ## Run
 
