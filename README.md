@@ -1,500 +1,259 @@
-# NeuroTutor AI - Neuroscience-Backed AI Tutor Mobile App
+# NeuroTutor Web
 
-## Overview
+A working browser-based AI tutor app salvaged from the `Vikaash-dev/neuro-tutoe`
+reference idea set. It keeps the strongest product mechanics while avoiding the
+Expo/mobile/server complexity:
 
-NeuroTutor AI is a cutting-edge mobile application that combines neuroscience research, the Feynman Technique, and advanced AI to help students achieve **superunderstanding** of complex topics. The app integrates multiple evidence-based learning principles to create an adaptive, personalized tutoring experience.
+- Feynman tutor modes: explainer, Socratic, role-reversal student, and duck mode
+- Teach-back analysis for gaps, misconceptions, and refined explanations
+- Active recall quizzes with memory updates
+- Spaced review, retention, consolidation, and mastery tracking
+- Concept graph with prerequisite and related-topic links
+- Goal-oriented study plans with skill-gap analysis
+- Smart resume panel that turns saved state and journal events into next actions
+- Course outline generator that turns the current concept graph, learner model, and KB source coverage into modules and checkpoints
+- Saved lesson scripts that turn plans into step-by-step tutor, source, teach-back, quiz, and transfer sessions
+- Weak-area detection and adaptive resource recommendations
+- Local knowledge base with section-aware chunking, hybrid retrieval, source labels, and prompt-injection guardrails
+- Tutor-quality evaluation dataset and scoring rubric
+- Per-response tutor self-checks shown inside the live chat and saved with the learner journal
+- Citation notebook that tracks which retrieved source chunks were cited or left unused across the session
+- Server-side learner event journal for tutor, teach-back, quiz, KB, and evidence events
+- Server-side learner state snapshot for profile, memory, chat, quiz, and session restore
+- Rendered whiteboard artifacts with concept diagrams, misconception contrasts, and worked examples
+- Browser `localStorage` fallback when the server is unavailable
+- User-added knowledge persistence through `data/user-knowledge.json`
 
-## Core Features
+The app is dependency-light and runs with Node only.
 
-### 🧠 Neuroscience-Backed Learning
+## Local LLM
 
-- **Spaced Repetition (SM-2 Algorithm)**: Optimal review intervals (1, 3, 7, 21 days) for long-term memory consolidation
-- **Active Recall**: Adaptive quizzes that test knowledge and strengthen neural pathways
-- **Memory Consolidation**: Tracks short-term memory (STM) to long-term memory (LTM) transition
-- **Misconception Detection**: AI identifies and corrects false beliefs
-- **Theory of Mind**: Adaptive teaching based on student mental models
+The server uses the LM Studio OpenAI-compatible API by default:
 
-### 📚 Feynman Technique Integration
-
-1. **Choose Concept**: Select a topic to learn
-2. **Teach Simply**: Explain the concept in plain language
-3. **Identify Gaps**: AI detects misconceptions and missing connections
-4. **Refine**: Receive targeted explanations to fill gaps
-
-### 🤖 AI-Powered Tutoring
-
-- **Gemini API Integration**: Google's advanced AI model for adaptive explanations
-- **Multi-Agent Problem Solving**: DeepTutor's dual-loop reasoning for complex problems
-- **Knowledge Graph (LightRAG)**: Semantic concept relationships and skill transfer
-- **Adaptive Responses**: Personalized explanations based on learning style and depth preference
-
-### 📊 Learning Analytics
-
-- **Mastery Levels**: Novice → Intermediate → Proficient → Expert progression
-- **Progress Tracking**: Visual dashboards showing learning journey
-- **Retention Scoring**: Real-time memory retention estimates
-- **Achievement System**: Milestones and learning streaks
-
-### 🎯 Key Screens
-
-1. **Onboarding** - Personalize learning preferences (style, depth, communication tone)
-2. **Home/Dashboard** - Learning streak, progress, recommended topics
-3. **AI Tutor Chat** - Main learning interface with Feynman-style explanations
-4. **Active Recall Quiz** - Adaptive quizzes with spaced repetition
-5. **Knowledge Graph** - Visual concept relationships and prerequisites
-6. **Memory Dashboard** - STM/LTM tracking and consolidation progress
-7. **Teach-Back** - Student explanations with AI analysis
-8. **Progress & Mastery** - Learning analytics and achievements
-9. **Quiz Results** - Performance metrics and retention scoring
-
-## Technology Stack
-
-### Frontend
-- **React Native 0.81** with Expo SDK 54
-- **TypeScript 5.9** for type safety
-- **NativeWind 4** (Tailwind CSS for React Native)
-- **Expo Router 6** for navigation
-- **React Native Reanimated 4** for animations
-
-### Backend & AI
-- **Google Gemini 2.5 Flash** for adaptive explanations
-- **DeepTutor Architecture** for multi-agent problem solving
-- **AsyncStorage** for local data persistence
-- **LightRAG** for knowledge graph relationships
-
-### Testing
-- **Vitest** for unit tests
-- **21 passing tests** validating core learning logic
-
-## Project Structure
-
-```
-neuro-tutor-ai/
-├── app/
-│   ├── (tabs)/
-│   │   ├── _layout.tsx          # Tab navigation
-│   │   └── index.tsx            # Home/Dashboard screen
-│   ├── onboarding.tsx           # Learning preferences setup
-│   ├── tutor-chat.tsx           # Main AI tutor interface
-│   ├── active-recall-quiz.tsx   # Adaptive quizzes
-│   ├── quiz-results.tsx         # Performance feedback
-│   ├── knowledge-graph.tsx      # Concept relationships
-│   ├── memory-dashboard.tsx     # STM/LTM tracking
-│   ├── teach-back.tsx           # Feynman explanation input
-│   └── progress-mastery.tsx     # Learning analytics
-├── lib/
-│   ├── types/
-│   │   └── learning.ts          # Core data types
-│   ├── services/
-│   │   ├── learning-engine.ts   # Spaced repetition & memory
-│   │   ├── ai-tutor.ts          # Feynman technique logic
-│   │   ├── gemini-api.ts        # Gemini API integration
-│   │   ├── deeptutor-integration.ts # DeepTutor features
-│   │   └── __tests__/           # Unit tests
-│   ├── data/
-│   │   └── sample-concepts.ts   # Sample learning content
-│   └── utils.ts                 # Utility functions
-├── components/
-│   ├── screen-container.tsx     # SafeArea wrapper
-│   ├── themed-view.tsx          # Theme-aware views
-│   └── ui/
-│       └── icon-symbol.tsx      # Icon mapping
-├── hooks/
-│   ├── use-colors.ts            # Theme colors
-│   ├── use-color-scheme.ts      # Dark/light mode
-│   └── use-auth.ts              # Auth state
-├── constants/
-│   └── theme.ts                 # Color palette
-├── assets/
-│   └── images/
-│       ├── icon.png             # App icon
-│       ├── splash-icon.png      # Splash screen
-│       └── favicon.png          # Web favicon
-├── ARCHITECTURE.md              # System design documentation
-├── design.md                    # UI/UX design principles
-├── todo.md                      # Feature tracking
-└── app.config.ts                # Expo configuration
+```text
+http://192.168.1.7:1234/v1
 ```
 
-## Getting Started
+The same loaded local model is used for tutor chat, teach-back evaluation, and
+quiz generation. If LM Studio reports multiple models, the server prefers a
+loaded `4b` model; otherwise it uses the first model from `/v1/models`. You can
+override settings with:
 
-### Prerequisites
-
-- Node.js 22.13.0+
-- pnpm 9.12.0+
-- Expo CLI
-- Gemini API Key (provided)
-
-### Installation
-
-```bash
-cd /home/ubuntu/neuro-tutor-ai
-
-# Install dependencies
-pnpm install
-
-# Set up environment variables
-# GEMINI_API_KEY is already configured in the system
-
-# Start development server
-pnpm dev
+```powershell
+$env:LLM_BASE_URL = "http://192.168.1.7:1234/v1"
+$env:LLM_MODEL = "your-loaded-model-id"
+$env:LLM_TIMEOUT_MS = "60000"
+$env:LLM_ENABLED = "true"
+npm.cmd run dev
 ```
 
-### Running the App
+LM Studio structured output is requested with `json_schema`. Some reasoning
+models return the JSON in `reasoning_content` while leaving `content` empty; the
+adapter reads both fields before deciding the response is malformed. If LM
+Studio is offline, times out, or still returns malformed JSON, the app falls
+back to its local deterministic tutor engine and exposes that fallback reason in
+the UI and eval reports.
 
-**Web Preview:**
-```bash
-pnpm dev:metro
-# Opens at http://localhost:8081
+To diagnose the local model connection from the same Node runtime the tutor
+uses:
+
+```powershell
+npm.cmd run doctor:llm
 ```
 
-**iOS (Expo Go):**
-```bash
-pnpm ios
-# Or scan QR code in Expo Go app
+The dashboard also shows whether the tutor is using LM Studio or deterministic
+fallback, including the first troubleshooting step when `/api/llm/health`
+cannot reach the configured endpoint.
+
+## Knowledge Base / RAG
+
+The Knowledge tab lets you paste notes, import `.txt` / `.md` / simple `.json`
+documents, or add PDF-extracted text. The server stores those documents locally,
+chunks them by Markdown sections with overlap, indexes the chunks, and retrieves
+only relevant chunks for tutor chat, teach-back analysis, and quiz generation.
+
+Current retrieval setup:
+
+- Built-in concept cards are indexed automatically.
+- User documents are stored in `data/user-knowledge.json`.
+- Chunks default to about 220 tokens with 45-token overlap.
+- Retrieval uses BM25-style keyword scoring, vector similarity, and
+  concept-graph boosts for the current concept, prerequisites, and related
+  concepts.
+- By default, vectors use the dependency-free local hashed embedding fallback so
+  the app always runs offline.
+- For real semantic embeddings, set `EMBEDDING_MODE=openai-compatible` and point
+  `EMBEDDING_BASE_URL` / `EMBEDDING_MODEL` at an OpenAI-compatible embedding
+  server such as LM Studio with an embedding model loaded.
+- Results are diversified so one long document cannot dominate every source.
+- Tutor responses can show compact source chips such as `S1`, `S2`, etc.
+- User-added documents can be deleted from the Knowledge tab.
+- Any document can be opened to inspect the exact chunks available to retrieval.
+- Uploaded documents are scanned for prompt-injection patterns. Suspicious lines
+  are redacted before retrieval context reaches the LLM, source chips carry risk
+  metadata, and the LLM prompts explicitly treat retrieved text as untrusted
+  evidence rather than instructions.
+- Tutor, teach-back, and quiz responses include an evidence trace that records
+  retrieved source labels, cited labels such as `[S1]`, invalid labels, uncited
+  chunks, and source snippets.
+
+Example semantic embedding setup:
+
+```powershell
+$env:EMBEDDING_MODE = "openai-compatible"
+$env:EMBEDDING_BASE_URL = "http://192.168.1.7:1234/v1"
+$env:EMBEDDING_MODEL = "your-loaded-embedding-model-id"
+npm.cmd run dev
 ```
 
-**Android (Expo Go):**
-```bash
-pnpm android
-# Or scan QR code in Expo Go app
+Useful endpoint:
+
+```text
+http://127.0.0.1:5173/api/kb/embeddings/health
 ```
 
-### Running Tests
+## Tutor Quality Baseline
 
-```bash
-# Run all tests
-pnpm test
+The checked-in eval set lives at `data/tutor-quality-evals.json`, and the rubric
+lives in `src/tutor-eval.js`. It scores each tutor reply across:
 
-# Run specific test file
-pnpm test lib/services/__tests__/learning-engine.test.ts
+- Concept coverage
+- Misconception handling
+- Active-learning prompts
+- Learner-profile adaptation
+- Groundedness and safety
+- Clarity
 
-# Watch mode
-pnpm test --watch
+`npm.cmd test` runs the quality baseline. The current deterministic tutor
+baseline passes all eval cases, so future changes have a guardrail against
+regressing tutor behavior while the local LLM prompts continue to improve.
+The same rubric is now applied to every live `/api/tutor` response, so chat
+messages include a compact self-check score and the learner journal can track
+average tutor quality over time.
+
+You can also run the tutor-quality eval directly:
+
+```powershell
+npm.cmd run eval:tutor
 ```
 
-## Core Algorithms
+To score the actual LM Studio tutor responses, first make sure LM Studio's local
+server is reachable, then run:
 
-### Spaced Repetition (SM-2)
-
-The app uses the SM-2 algorithm for optimal review scheduling:
-
-```
-If quality < 3 (failed):
-  - Reset interval to 1 day
-  - Decrease ease factor
-Else (passed):
-  - If first review: 1 day
-  - If second review: 3 days
-  - Else: interval = interval × ease_factor
-  - Increase ease factor slightly
+```powershell
+npm.cmd run eval:tutor:llm
 ```
 
-### Consolidation Progress
+The LLM eval command uses `--require-llm`, so it fails if the app falls back to
+the deterministic tutor. That keeps the quality gate honest.
 
-```
-consolidationProgress = (accuracy × 0.4) + (reviews × 0.35) + (time × 0.25)
+## Learner State And Journal
 
-Where:
-- accuracy = correct_answers / total_attempts × 100
-- reviews = min(review_count × 20, 100)
-- time = min((days_since_first_review / 21) × 100, 100)
-```
+The server writes compact durable learning events to `data/learner-events.json`.
+The journal records tutor replies, teach-back assessments, generated quizzes,
+completed quizzes, added knowledge documents, provider/fallback metadata, scores,
+gaps, and evidence-trace summaries.
 
-### Mastery Level Progression
+The server also stores the restorable learner snapshot in
+`data/learner-state.json`: profile controls, known/struggling concepts, memory
+records, chat messages, current quiz, active mode, learning goal, and the latest
+teach-back result. The browser hydrates from the server when no local progress
+exists, prefers a newer server snapshot when one exists, and pushes newer local
+progress back to the server.
 
-```
-Novice → Intermediate: quiz_score ≥ 70% AND reviews ≥ 1
-Intermediate → Proficient: quiz_score ≥ 80% AND reviews ≥ 2
-Proficient → Expert: quiz_score ≥ 90% AND reviews ≥ 3
-```
+Lesson scripts are saved in `data/lesson-scripts.json`. They are generated from
+the current learner state, study goal, concept graph, and learner journal, then
+refreshed against new events so completed tutor, teach-back, and quiz steps
+advance the current step.
 
-## Learning Flow
+Useful endpoints:
 
-### 1. Initial Learning Session
-
-```
-User selects topic
-    ↓
-AI generates Feynman-style simple explanation
-    ↓
-Student asks questions or explains concept
-    ↓
-AI analyzes explanation for gaps/misconceptions
-    ↓
-AI provides targeted follow-up explanations
-    ↓
-Concept added to Short-Term Memory (STM)
-    ↓
-Spaced repetition schedule initiated (1-day review)
+```text
+http://127.0.0.1:5173/api/learner/events
+http://127.0.0.1:5173/api/learner/citations
+http://127.0.0.1:5173/api/learner/course-outline
+http://127.0.0.1:5173/api/learner/lesson-script
+http://127.0.0.1:5173/api/learner/resume
+http://127.0.0.1:5173/api/learner/state
 ```
 
-### 2. Spaced Repetition & Active Recall
+## Clone Project Analysis
 
-```
-Concept reaches next review date
-    ↓
-AI generates adaptive quiz questions
-    ↓
-Student takes quiz (active recall)
-    ↓
-Quiz performance evaluated
-    ↓
-If 80%+ accuracy:
-  - Mastery level increases
-  - Review interval extends (3 days)
-  - Consolidation progress increases
-Else:
-  - Review interval resets (1 day)
-  - Misconceptions identified
-  - Targeted correction provided
-    ↓
-After 3+ reviews with 80%+ accuracy:
-  - Concept moves to Long-Term Memory (LTM)
-  - Review interval becomes 21+ days
+The full salvage matrix is in `docs/clone-project-analysis.md`. It maps each
+already-cloned tutor/reference repo to useful ideas, reusable code or patterns,
+rejected parts, what is already implemented here, and what remains TODO.
+
+## Run
+
+```powershell
+npm.cmd run dev
 ```
 
-### 3. Teach-Back (Feynman Technique)
+Open:
 
-```
-Student selects "Teach-Back" feature
-    ↓
-Prompt: "Explain [concept] as if teaching a 10-year-old"
-    ↓
-Student types explanation
-    ↓
-AI analyzes for:
-  - Accuracy
-  - Missing key points
-  - Misconceptions
-  - Clarity
-    ↓
-AI provides corrected explanation
-    ↓
-Student understanding updated
-    ↓
-Memory state adjusted based on explanation quality
+```text
+http://127.0.0.1:5173
 ```
 
-## Gemini API Integration
+## Test
 
-The app uses Google's Gemini 2.5 Flash model for:
-
-1. **Simple Explanations** - Feynman-style teaching
-2. **Explanation Analysis** - Detecting gaps and misconceptions
-3. **Follow-up Questions** - Socratic questioning
-4. **Quiz Generation** - Adaptive questions based on mastery level
-5. **Misconception Correction** - Targeted remediation
-6. **Adaptive Responses** - Personalized tutor responses
-
-### API Methods
-
-```typescript
-// Generate simple explanation
-await GeminiAPIService.generateSimpleExplanation(
-  conceptName, description, keyPoints, learningStyle
-);
-
-// Analyze student explanation
-await GeminiAPIService.analyzeStudentExplanation(
-  studentExplanation, correctConcept, keyPoints, commonMisconceptions
-);
-
-// Generate follow-up questions
-await GeminiAPIService.generateFollowUpQuestions(
-  conceptName, identifiedGaps, learningStyle, count
-);
-
-// Generate quiz questions
-await GeminiAPIService.generateQuizQuestions(
-  conceptName, masteryLevel, learningStyle, count
-);
-
-// Correct misconceptions
-await GeminiAPIService.correctMisconception(
-  misconception, correctConcept, keyPoints
-);
-
-// Generate adaptive response
-await GeminiAPIService.generateAdaptiveResponse(
-  studentQuestion, conceptName, learningStyle, communicationPreference
-);
+```powershell
+npm.cmd test
 ```
 
-## Data Models
+## Full Tutor Session Smoke
 
-### Concept
+With the server running, this command drives a realistic learner journey through
+the actual HTTP system: tutor repair, Socratic follow-up, teach-back analysis,
+quiz generation, learner journal, state save, smart resume, course outline, and lesson-script
+generation. It also verifies that live tutor replies include self-evaluation
+scores from the tutor-quality rubric and that cited source chunks flow into the
+citation notebook.
 
-```typescript
-{
-  id: string;
-  name: string;
-  description: string;
-  category: "math" | "science" | "history" | "language" | "technology";
-  difficulty: "beginner" | "intermediate" | "advanced" | "expert";
-  prerequisites: string[];
-  relatedConcepts: string[];
-  keyPoints: string[];
-  commonMisconceptions: string[];
-  realWorldApplications: string[];
-}
+```powershell
+npm.cmd run smoke:tutor-session
 ```
 
-### ConceptMemoryState
+## Health Checks
 
-```typescript
-{
-  conceptId: string;
-  memoryType: "short_term" | "long_term";
-  masteryLevel: "novice" | "intermediate" | "proficient" | "expert";
-  retentionScore: number; // 0-100
-  reviewCount: number;
-  correctAnswers: number;
-  totalAttempts: number;
-  consolidationProgress: number; // 0-100
-  nextReviewDate: number; // timestamp
-}
+```text
+http://127.0.0.1:5173/api/health
+http://127.0.0.1:5173/api/llm/health
+http://127.0.0.1:5173/api/kb
 ```
 
-### StudentMentalModel (Theory of Mind)
+## Reference Ideas Salvaged
 
-```typescript
-{
-  studentId: string;
-  learningStyle: "visual" | "verbal" | "kinesthetic" | "reading_writing";
-  communicationPreference: "encouraging" | "neutral" | "formal" | "socratic";
-  explanationDepth: "simple" | "moderate" | "detailed" | "expert";
-  knownConcepts: string[];
-  strugglingConcepts: string[];
-  motivationLevel: number; // 0-100
-  confidenceLevel: number; // 0-100
-}
-```
+From `Vikaash-dev/neuro-tutoe`:
 
-## Performance Optimization
+- NeuroTutor dashboard and learning-loop shape
+- Feynman technique teach-back flow
+- Spaced repetition and memory-state model
+- Active recall quiz loop
+- Knowledge graph relationships
+- Document RAG pipeline, adapted into a web/server implementation with stronger
+  chunking and retrieval
+- Theory-of-mind profile controls
+- Multi-mode tutor behavior
+- FSRS/forgetting-curve direction, represented here by stability and retention
+  scheduling in the lightweight memory engine
 
-### Caching Strategy
+From already-cloned related tutor projects:
 
-- **Concepts**: Loaded once, cached locally
-- **Memory States**: Updated after each interaction
-- **Spaced Repetition Schedules**: Computed on-demand
-- **Quiz Questions**: Generated fresh for each quiz
+- `JushBJJ/Mr.-Ranedeer-AI-Tutor`: explicit tutor configuration for depth,
+  learning style, communication style, tone, and tests
+- `plastic-labs/tutor-gpt`: theory-of-mind style learner representation and
+  separate meta-context before the final tutor response
+- `GeminiLight/gen-mentor`: goal-oriented ITS flow: skill gaps, learner model,
+  learning path scheduler, tailored content, chatbot tutor
+- `llSourcell/mathvoice`: Socratic mode, prerequisite-gated topic graph,
+  mastery-based difficulty, and weak-area tracking
+- `HugeCatLab/ChatTutor`: whiteboard/diagram/note artifacts as first-class
+  teaching outputs
+- `A-R007/Multi-Agent-Study-Assistant`: analyzer, roadmap, quiz, tutor,
+  resource finder, and document-Q&A agent roles
+- `TovTechOrg/Tov-learn`: smart resume, lesson scripts, exercises, spaced
+  review, and project-grounded examples
 
-### Lazy Loading
-
-- Screens load data only when needed
-- Knowledge graph rendered incrementally
-- Chat messages streamed as they arrive
-
-### Offline Support
-
-- Core learning engine works offline
-- Sync with backend when connection available
-- Local storage as primary data source
-
-## Testing
-
-### Unit Tests (21 passing tests)
-
-- Learning engine logic (memory, spaced repetition, mastery)
-- Consolidation progress calculations
-- SM-2 algorithm implementation
-- Gemini API integration
-- Quiz evaluation and feedback
-
-### Running Tests
-
-```bash
-pnpm test
-```
-
-## Deployment
-
-### Local Testing
-
-The app is fully functional for local testing with:
-
-- All screens implemented and interactive
-- Gemini API integration for AI features
-- Local data persistence with AsyncStorage
-- Complete learning flow end-to-end
-
-### Future Deployment
-
-For production deployment:
-
-1. Create checkpoint: `webdev_save_checkpoint`
-2. Click "Publish" button in UI
-3. Follow build process for iOS/Android APK
-
-## Architecture Highlights
-
-### Multi-Agent System (DeepTutor)
-
-```
-┌─────────────────────────────────────────┐
-│      Dual-Loop Reasoning System         │
-├─────────────────────────────────────────┤
-│  Retrieval Agent  │  Solver Agent       │
-│  (RAG + LightRAG) │  (Code Execution)   │
-├─────────────────────────────────────────┤
-│  Validator Agent  │  Explainer Agent    │
-│  (Correctness)    │  (Feynman-style)    │
-└─────────────────────────────────────────┘
-```
-
-### Memory Systems
-
-```
-┌──────────────────────────────────────────┐
-│     Short-Term Memory (Session)          │
-│  Concepts learned recently (1-3 days)    │
-│  Retention: 50-70%                       │
-│  Action: Review in 1 day                 │
-└──────────────────────────────────────────┘
-                    ↓ (Consolidation)
-┌──────────────────────────────────────────┐
-│    Long-Term Memory (Consolidated)       │
-│  Concepts passed spaced repetition tests │
-│  Retention: 85%+                         │
-│  Action: Periodic review (21+ days)      │
-└──────────────────────────────────────────┘
-```
-
-## Key References
-
-- **DeepTutor (2025)** - HKUDS, Multi-agent AI tutoring system
-- **Feynman Technique** - Teaching concepts in simple language
-- **SM-2 Algorithm** - Optimal spaced repetition scheduling
-- **Active Recall** - Cognitive psychology research on memory
-- **Theory of Mind** - Adaptive tutoring based on student models
-- **Knowledge Graphs** - LightRAG for semantic relationships
-- **Bloom's 2-Sigma Problem** - Achieving human tutoring effectiveness with AI
-
-## Future Enhancements
-
-1. **Adaptive Difficulty** - Adjust content difficulty based on performance
-2. **Peer Learning** - Students teach each other concepts
-3. **Gamification** - Achievements, leaderboards, streaks
-4. **Mobile Offline** - Full offline support with sync
-5. **Voice Input** - Speech-to-text for explanations
-6. **Video Explanations** - AI-generated video tutorials
-7. **Personalized Learning Paths** - AI-recommended curriculum
-8. **Predictive Analytics** - Predict concepts student will struggle with
-9. **Export Learning Data** - Export progress and insights
-10. **Multi-language Support** - Support for multiple languages
-
-## Support & Documentation
-
-- **ARCHITECTURE.md** - Detailed system design
-- **design.md** - UI/UX design principles
-- **todo.md** - Feature tracking and progress
-- **Tests** - Unit tests in `lib/services/__tests__/`
-
-## License
-
-NeuroTutor AI - Neuroscience-backed AI tutoring for superunderstanding
-
----
-
-**Built with ❤️ using Feynman Technique, Neuroscience, and AI**
+This version intentionally ships as a web app first so it is runnable in this
+workspace without mobile tooling or API credentials.
