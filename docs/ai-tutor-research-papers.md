@@ -9,6 +9,10 @@ a lightweight intelligent tutoring system: it models the learner, asks for
 active work, checks teach-backs, grounds answers in a local knowledge base,
 tracks source use, and evaluates tutor quality.
 
+For the full devised tutor-system architecture, see
+`docs/tutor-system-architecture.md`. That document explains how the tutor works
+as a learning system rather than a frontend/backend implementation.
+
 ## Paper Spine
 
 | Source | Main useful finding | NeuroTutor decision | Implemented files | Still TODO |
