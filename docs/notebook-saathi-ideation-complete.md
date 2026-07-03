@@ -13,29 +13,56 @@ the misconception or missing skill, keeps the learner in the Goldilocks zone,
 and guides them through attempt, hint, teach-back, retrieval, calibration, and
 transfer until they can think independently.
 
+## Actual Goal And Method Overview
+
+The goal is not to make a better answer bot. The goal is to transfer real
+learning skill: the learner should notice confusion, correct wrong mental
+models, explain ideas simply, remember them later, and transfer them to new
+problems with less help over time.
+
+High-level method:
+
+1. Intake real evidence: notebook work, learner messages, quiz answers,
+   teach-backs, and uploaded notes.
+2. Build a learner model: known skills, weak skills, misconceptions,
+   confidence, and review history.
+3. Use a skill graph to connect new concepts to prior knowledge.
+4. Choose a Goldilocks next action: repair, productive attempt, hint, worked
+   example, retrieval, calibration, or transfer.
+5. Use Socratic hints and Feynman teach-back so the learner must produce the
+   explanation.
+6. Detect misconception and implicit contradiction, then force self-correction
+   before progress credit.
+7. Schedule spaced recall and interleaved practice so learning survives beyond
+   the session.
+8. Give teachers inspectable evidence clusters and approve/edit control for
+   classroom remediation.
+
 ## Form-Ready Answers
 
 ### 12. Problem Within The Theme
 
-Students increasingly get AI answers without learning the thinking behind them.
-Teachers cannot give one-to-one feedback on every notebook, misconception, and
-confidence gap, so weak understanding silently becomes dependency.
+Students use AI to get answers but still miss the skill, metacognition, and
+self-correction a human tutor builds. Teachers cannot diagnose every notebook,
+misconception, confidence gap, and transfer failure, so weak understanding
+becomes hidden dependency.
 
 ### 13. Solution In Detail
 
-Notebook Saathi is a practical AI tutor for classrooms and self-learners. It
-uses student work, uploaded notes, and local LLM tutoring to diagnose gaps,
-repair misconceptions, ask Socratic hints, require teach-back, schedule recall,
-and prove transfer instead of giving final answers. Teachers can review evidence
-and approve remediation.
+Notebook Saathi is a local-first AI tutor whose goal is to make learners
+independent thinkers, not answer copiers. It uses notebook evidence, uploaded
+notes, a learner model, skill graph, RAG/citations, Socratic hints, Feynman
+teach-back, misconception repair, confidence calibration, spaced recall, and
+transfer tasks. Teachers review clusters and approve remediation.
 
 ### 14. Target User
 
-The first users are middle-school, high-school, college, and beginner technical
-learners who need affordable one-to-one practice, plus teachers who want fast,
-inspectable misconception diagnosis from real student work. It also supports
-self-learners who use local AI and want tutoring without becoming answer
-dependent.
+Created for middle-school, high-school, college, and beginner technical learners
+who need one-to-one practice but lack personal tutoring. It also serves
+teachers managing large classes: they get inspectable misconception clusters,
+retry tasks, and progress evidence. Self-learners using local AI get
+privacy-friendly guidance that teaches how to think, check, remember, and
+transfer.
 
 ## Problem
 
