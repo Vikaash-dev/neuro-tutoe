@@ -43,6 +43,7 @@ remember, calibrate, and transfer better than direct answer generation?
 | UX for learning | Interface should encourage attempts, not passive reading. | Attempt panel, confidence slider, hint steps, teach-back, review queue. | Partial. |
 | Outcome evaluation | Claims need evidence beyond demos. | Pre-test, post-test, delayed test, teacher rubric, ablation logs. | Needed. |
 | Autonomous background agents | Some tutor work should run as scheduled or event-triggered workflows rather than live chat. | AutoGPT-style agents for evidence processing, teacher summaries, long-session evals, and review queue maintenance. | Needed for background workflows; not needed for the core live tutor loop yet. |
+| Evolving tutor policies | Tutor behavior should improve from failures, but only through gated offline evaluation. | A-Evolve-style solve-observe-evolve loop for prompts, tutor skills, rubrics, and policy fragments against tutor benchmarks. | Needed as an offline optimization layer; must not auto-change live learner behavior. |
 
 ## Research Backbone
 
@@ -73,6 +74,8 @@ remember, calibrate, and transfer better than direct answer generation?
 4. Add due reviews and interleaving before claiming durable memory.
 5. Add long-session eval before claiming human-replacement tutor quality.
 6. Add Notebook Saathi teacher review after the student loop is measurable.
+7. Add offline tutor-policy evolution only after benchmarks are strong enough
+   to reject harmful mutations.
 
 ## AutoGPT Agent Use
 
@@ -128,6 +131,79 @@ Safety boundary:
 - Agents must not execute code from uploaded documents.
 - Agents must not mark mastery complete without learner evidence.
 - Agents must not bypass the hint-first policy.
+
+## A-Evolve Tutor Optimization
+
+A-Evolve is useful after the tutor has measurable benchmarks. It should evolve
+the tutor's prompts, rubric fragments, skills, and memory procedures offline,
+then promote only changes that pass holdout tests. It should not mutate live
+behavior during a student session.
+
+Recommended evolvable workspace:
+
+```text
+tutor-policy-workspace/
+  manifest.yaml
+  prompts/
+    tutor-system.md
+    teach-back-evaluator.md
+    quiz-generator.md
+  skills/
+    hint-first-scaffolding/SKILL.md
+    misconception-repair/SKILL.md
+    calibration-feedback/SKILL.md
+    answer-leakage-defense/SKILL.md
+  memory/
+    episodic-failures.jsonl
+    semantic-rules.jsonl
+  benchmarks/
+    tutor-quality.json
+    long-session.json
+    answer-leakage.json
+    notebook-saathi.json
+```
+
+Evolution loop:
+
+1. Solve
+   - Run the current tutor policy on tutor-quality cases, long simulated
+     learner conversations, adversarial answer-leakage cases, and Notebook
+     Saathi remediation cases.
+
+2. Observe
+   - Score each trajectory for active learning, hint-first behavior,
+     misconception repair, calibration, transfer, source grounding, and
+     answer-leakage resistance.
+
+3. Evolve
+   - Mutate only prompt fragments, rubric language, skill instructions, and
+     failure-memory rules. Do not mutate runtime code in the same loop.
+
+4. Gate
+   - Require all existing unit tests.
+   - Require holdout tutor-quality score not to regress.
+   - Require answer-leakage score to improve or remain at zero leakage.
+   - Require no new unsafe direct-answer behavior.
+
+5. Promote
+   - Convert accepted changes into normal repo edits.
+   - Review diffs manually.
+   - Commit only after deterministic tests and, when available, LM Studio evals.
+
+First benchmark targets:
+
+- Single-turn tutor quality: current `data/tutor-quality-evals.json`.
+- Long-session learner simulation: extend `scripts/run-full-tutor-session.mjs`.
+- Answer leakage: adversarial student prompts asking for final answers.
+- Calibration: confidence prediction versus score gap.
+- Notebook Saathi: misconception cluster accuracy and remediation usefulness.
+
+Why this matters:
+
+- The tutor should learn from failure without experimenting on students.
+- Evolution should optimize measurable pedagogy, not just nicer language.
+- Bad mutations must be rolled back by benchmarks before they reach the app.
+- The core tutor remains deterministic and auditable while policies improve.
 
 ## Definition of "Actual Tutor"
 
