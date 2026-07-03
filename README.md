@@ -185,6 +185,12 @@ rejected parts, what is already implemented here, and what remains TODO.
 
 ## AI Tutor Research Cross-Reference
 
+The complete product ideation brief lives in
+`docs/notebook-saathi-ideation-complete.md`. It consolidates the problem,
+solution, target users, chosen product direction, learning engine, MVP demo
+definition, implementation status, risks, and next build slice for Notebook
+Saathi / NeuroTutor.
+
 The AI-tutor paper spine and implementation audit lives in
 `docs/ai-tutor-research-papers.md`. It connects the tutor literature, cloned
 reference ideas, devised app systems, exact local implementation files, and

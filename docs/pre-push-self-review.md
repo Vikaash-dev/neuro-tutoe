@@ -56,3 +56,58 @@ Result: 71 tests passed, 0 failed.
 Ready to push after this self-review because the review found documentation
 gaps, the gaps were fixed, and verification stayed green. The remaining items
 are correctly represented as TODOs rather than implemented features.
+
+---
+
+## 2026-07-03 Ideation Completion Review
+
+### Scope Reviewed
+
+- `docs/notebook-saathi-ideation-complete.md`
+- `README.md`
+- `docs/tutor-system-architecture.md`
+- Existing research, source-map, and clone-analysis docs
+- Current test suite
+
+### Findings
+
+#### P1: Ideation was spread across too many documents
+
+The repo already had strong pieces: clone salvage, research evidence, learning
+science, architecture, and implementation status. What was missing was a single
+product-level artifact that connected problem, solution, target user, chosen
+direction, learning engine, MVP, implementation honesty, risks, and next build
+slice.
+
+Status: fixed by adding `docs/notebook-saathi-ideation-complete.md` and linking
+it from `README.md` plus `docs/tutor-system-architecture.md`.
+
+#### P2: Human-replacement ambition needed a safer current claim
+
+The long-term ambition is a tutor that can replace many human tutoring
+functions. The current branch should not claim full human replacement yet
+because long-session quality, answer-leakage resistance, teacher workflow, and
+outcome studies are not complete.
+
+Status: fixed in the ideation brief by framing the current app as a practical
+teacher-supervised tutor baseline, with stronger replacement claims gated by
+long-session and outcome evidence.
+
+#### P2: Next engineering slice needed to be explicit
+
+The next work should not drift into more generic chat UI or more survey
+documents. The strongest next slice is the thinking-tutor upgrade: productive
+attempt, confidence calibration, answer-leakage evals, interleaved review, and
+Notebook Saathi teacher review/export.
+
+Status: fixed in the ideation brief under "Next Build Slice."
+
+### Verification
+
+Run after this ideation pass:
+
+```powershell
+npm.cmd test
+```
+
+Result: 76 tests passed, 0 failed.

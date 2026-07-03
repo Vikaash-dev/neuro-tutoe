@@ -4,6 +4,10 @@ This is the learning-system architecture: how the tutor should think, decide,
 teach, check, remember, and improve. It is intentionally not a frontend/backend
 architecture.
 
+For the product-level ideation brief that defines the problem, solution, target
+users, chosen direction, MVP, status, and next build slice, see
+`docs/notebook-saathi-ideation-complete.md`.
+
 ## System Goal
 
 NeuroTutor is designed as an intelligent tutoring loop, not a question-answer
