@@ -7,6 +7,7 @@ import {
   buildTutorSessionState,
   buildCalibrationInsight,
   createInitialMemory,
+  detectSelfCorrectionConflict,
   generateLearningPath,
   generateQuiz,
   generateTutorReply,
@@ -50,6 +51,47 @@ test("teach-back analysis does not flag correct deployment-pod relationship as s
 
   assert.ok(result.accuracy >= 85);
   assert.deepEqual(result.misconceptions, []);
+});
+
+test("implicit self-correction detects reversed comparison conflicts", () => {
+  const result = detectSelfCorrectionConflict({
+    claim: "Sound is faster than light.",
+    evidence: [
+      "Light is faster than sound.",
+      "Lightning is seen before thunder because light travels faster than sound.",
+    ],
+  });
+
+  assert.equal(result.conflict, true);
+  assert.equal(result.likelyMistake, "reversed_comparison");
+  assert.match(result.correctedClaim, /light is faster than sound/i);
+  assert.ok(result.cues.some((cue) => /lightning|thunder|faster/i.test(cue)));
+  assert.match(result.feedback, /conflicts with stronger comparison evidence/i);
+});
+
+test("teach-back analysis surfaces self-correction conflicts from trusted comparisons", () => {
+  const result = analyzeTeachBack({
+    concept: {
+      id: "light-sound-speed",
+      name: "Light and Sound Speed",
+      description: "Light travels faster than sound.",
+      keyPoints: [
+        "Light travels faster than sound",
+        "Lightning is seen before thunder because light reaches you first",
+      ],
+      commonMisconceptions: ["Sound is faster than light"],
+      realWorldApplications: ["Explaining why thunder arrives after lightning"],
+    },
+    explanation: "Sound is faster than light because thunder proves it.",
+    trustedComparisons: [
+      "Light is faster than sound.",
+      "Lightning is seen before thunder because light travels faster than sound.",
+    ],
+  });
+
+  assert.equal(result.selfCorrection.conflict, true);
+  assert.equal(result.selfCorrection.likelyMistake, "reversed_comparison");
+  assert.ok(result.suggestions.some((item) => /self-correct|conflict|comparison/i.test(item)));
 });
 
 test("partial known concept payloads are completed before tutor generation", () => {

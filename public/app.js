@@ -1190,6 +1190,18 @@ function renderTeachBack() {
         }
       </div>
     </div>
+    ${
+      result.selfCorrection?.conflict
+        ? `<div>
+            <h3>Self-correction</h3>
+            <p class="body-copy">${escapeHtml(result.selfCorrection.feedback)}</p>
+            <div class="pill-row">
+              <span class="pill">${escapeHtml(result.selfCorrection.correctedClaim)}</span>
+              ${(result.selfCorrection.cues || []).slice(0, 2).map((cue) => `<span class="pill">${escapeHtml(cue)}</span>`).join("")}
+            </div>
+          </div>`
+        : ""
+    }
     <div>
       <h3>Refined explanation</h3>
       <p class="body-copy">${escapeHtml(result.refinedExplanation)}</p>
@@ -1386,7 +1398,7 @@ function renderQuiz() {
         <p class="eyebrow">Teach-back prompt</p>
         <h2>${escapeHtml(question.question)}</h2>
         <label class="sr-only" for="quizExplainInput">Quiz teach-back answer</label>
-        <textarea id="quizExplainInput" class="large-input" placeholder="Write your explanation"></textarea>
+        <textarea id="quizExplainInput" class="large-input recall-friction-text" placeholder="Write your explanation"></textarea>
         <button class="primary-button" id="scoreExplain" type="button">Score explanation</button>
       </div>
     `;

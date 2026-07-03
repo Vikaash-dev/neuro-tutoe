@@ -115,6 +115,99 @@ function detectMisconceptions(concept, explanationWords, explanationText) {
   });
 }
 
+function comparisonClauses(text) {
+  return String(text || "")
+    .toLowerCase()
+    .split(/[.;!?]|\b(?:because|while|whereas|although|though|but|since|so)\b/g)
+    .map((clause) => clause.trim())
+    .filter(Boolean);
+}
+
+function normalizeComparisonEntity(value) {
+  const words = keywordsFrom(value).filter(
+    (word) => !["faster", "slower", "travel", "travels", "move", "moves", "speed", "velocity", "rate"].includes(word),
+  );
+  return words.slice(-3).join(" ") || String(value || "").toLowerCase().trim();
+}
+
+function extractComparisons(text) {
+  const comparisons = [];
+  for (const clause of comparisonClauses(text)) {
+    const match = clause.match(/^(.+?)\s+(?:is|are|travels?|moves?|goes?)?\s*(faster|slower)\s+than\s+(.+?)$/i);
+    if (!match) continue;
+    const subject = normalizeComparisonEntity(match[1]);
+    const object = normalizeComparisonEntity(match[3]);
+    if (!subject || !object || subject === object) continue;
+    comparisons.push({
+      subject,
+      relation: match[2].toLowerCase(),
+      object,
+      sourceClause: clause,
+    });
+  }
+  return comparisons;
+}
+
+function sameComparisonEntity(left, right) {
+  return left === right || left.split(" ").includes(right) || right.split(" ").includes(left);
+}
+
+function correctedComparisonFrom(evidenceComparison) {
+  return `${evidenceComparison.subject} is ${evidenceComparison.relation} than ${evidenceComparison.object}.`;
+}
+
+export function detectSelfCorrectionConflict(payload = {}) {
+  const claim = String(payload.claim || payload.explanation || payload.answer || "").trim();
+  const evidence = Array.isArray(payload.evidence)
+    ? payload.evidence
+    : Array.isArray(payload.trustedComparisons)
+      ? payload.trustedComparisons
+      : [];
+  const claimComparisons = extractComparisons(claim);
+  const evidenceComparisons = evidence.flatMap((item) => extractComparisons(item));
+
+  for (const claimComparison of claimComparisons) {
+    for (const evidenceComparison of evidenceComparisons) {
+      const reversedEntities =
+        sameComparisonEntity(claimComparison.subject, evidenceComparison.object) &&
+        sameComparisonEntity(claimComparison.object, evidenceComparison.subject);
+      const sameEntities =
+        sameComparisonEntity(claimComparison.subject, evidenceComparison.subject) &&
+        sameComparisonEntity(claimComparison.object, evidenceComparison.object);
+      const oppositeRelation =
+        (claimComparison.relation === "faster" && evidenceComparison.relation === "slower") ||
+        (claimComparison.relation === "slower" && evidenceComparison.relation === "faster");
+
+      if ((reversedEntities && claimComparison.relation === evidenceComparison.relation) || (sameEntities && oppositeRelation)) {
+        const correctedClaim = correctedComparisonFrom(evidenceComparison);
+        const likelyMistake = reversedEntities ? "reversed_comparison" : "opposite_comparison";
+        return {
+          conflict: true,
+          likelyMistake,
+          claim,
+          claimComparison: claimComparison.sourceClause,
+          correctedClaim,
+          cues: [
+            evidenceComparison.sourceClause,
+            `Compare ${evidenceComparison.subject} against ${evidenceComparison.object} before saving the fact.`,
+          ],
+          feedback: `This conflicts with stronger comparison evidence: ${correctedClaim} Self-correct the relation before practicing it.`,
+        };
+      }
+    }
+  }
+
+  return {
+    conflict: false,
+    likelyMistake: "",
+    claim,
+    claimComparison: "",
+    correctedClaim: "",
+    cues: [],
+    feedback: "No trusted comparison conflict detected.",
+  };
+}
+
 export function analyzeTeachBack(payload = {}) {
   const concept = resolveConcept(payload.concept || payload.conceptId);
   const explanation = String(payload.explanation || payload.studentExplanation || "").trim();
@@ -130,18 +223,31 @@ export function analyzeTeachBack(payload = {}) {
   const coveredPoints = pointScores.filter((item) => item.score >= 0.34).map((item) => item.point);
   const missingPoints = pointScores.filter((item) => item.score < 0.34).map((item) => item.point);
   const misconceptions = detectMisconceptions(concept, explanationWords, explanationText);
+  const trustedComparisons = [
+    ...(Array.isArray(payload.trustedComparisons) ? payload.trustedComparisons : []),
+    ...(Array.isArray(payload.evidence) ? payload.evidence : []),
+    concept.description,
+    ...concept.keyPoints,
+  ].filter(Boolean);
+  const selfCorrection = detectSelfCorrectionConflict({ claim: explanation, evidence: trustedComparisons });
   const wordCount = explanation ? explanation.split(/\s+/).length : 0;
   const coverage = pointScores.length
     ? pointScores.reduce((sum, item) => sum + item.score, 0) / pointScores.length
     : 0;
   const clarityBonus = Math.min(14, Math.round((wordCount / 45) * 14));
   const misconceptionPenalty = misconceptions.length * 13;
-  const accuracy = Math.round(Math.max(0, Math.min(100, coverage * 100 + clarityBonus - misconceptionPenalty)));
+  const selfCorrectionPenalty = selfCorrection.conflict ? 12 : 0;
+  const accuracy = Math.round(
+    Math.max(0, Math.min(100, coverage * 100 + clarityBonus - misconceptionPenalty - selfCorrectionPenalty)),
+  );
 
   const suggestions = [];
   if (wordCount < 35) suggestions.push("Add one concrete example and one why-it-matters sentence.");
   if (missingPoints.length > 0) suggestions.push(`Work in: ${missingPoints.slice(0, 2).join("; ")}.`);
   if (misconceptions.length > 0) suggestions.push("Separate the tempting misconception from the corrected idea.");
+  if (selfCorrection.conflict) {
+    suggestions.push(`Self-correct the conflicting comparison: ${selfCorrection.correctedClaim}`);
+  }
   if (profile.learningStyle === "visual") suggestions.push("Sketch the flow as boxes and arrows before explaining it again.");
   if (accuracy >= 82) suggestions.push("Strong teach-back. Try an application problem next.");
 
@@ -151,6 +257,7 @@ export function analyzeTeachBack(payload = {}) {
     coveredPoints,
     missingPoints,
     misconceptions,
+    selfCorrection,
     suggestions,
     refinedExplanation: buildTeachingSnapshot(concept, profile),
   };
@@ -586,6 +693,15 @@ function adaptiveReply(concept, message, profile = {}) {
       ].join("\n");
     }
     return generateSimpleExplanation(concept, profile);
+  }
+
+  if (analysis.selfCorrection?.conflict) {
+    return [
+      "Pause and self-correct before we practice that.",
+      analysis.selfCorrection.feedback,
+      `Rewrite the comparison as: ${analysis.selfCorrection.correctedClaim}`,
+      "Then explain which clue forced the correction.",
+    ].join("\n");
   }
 
   if (analysis.accuracy < 45) {
