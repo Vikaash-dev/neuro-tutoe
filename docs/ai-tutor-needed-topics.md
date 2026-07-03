@@ -48,11 +48,24 @@ remember, calibrate, and transfer better than direct answer generation?
 
 ## Research Backbone
 
+- Feynman Lectures on Physics, Caltech online edition: https://feynmanlectures.caltech.edu/
+- Feynman, "Cargo Cult Science" (1974): https://calteches.library.caltech.edu/51/2/CargoCult.htm
 - Bloom, "The 2 Sigma Problem" (1984): https://doi.org/10.3102/0013189X013006004
 - Kulik and Fletcher, ITS meta-analysis (2016): https://doi.org/10.3102/0034654315581420
 - Roediger and Karpicke, retrieval practice (2006): https://doi.org/10.1111/j.1467-9280.2006.01693.x
+- Dunlosky et al., effective learning techniques (2013): https://doi.org/10.1177/1529100612453266
+- Karpicke and Blunt, retrieval over concept mapping (2011): https://doi.org/10.1126/science.1199327
 - Chi et al., self-explanation (1994): https://doi.org/10.1207/s15516709cog1803_3
 - Chi and Wylie, ICAP active learning framework (2014): https://doi.org/10.1080/00461520.2014.965823
+- Butterfield and Metcalfe, hypercorrection (2001): https://doi.org/10.1037/0278-7393.27.6.1491
+- Metcalfe, learning from errors (2017): https://doi.org/10.1146/annurev-psych-010416-044022
+- Gick and Holyoak, analogical transfer (1983): https://doi.org/10.1016/0010-0285(83)90002-6
+- Gentner, structure mapping (1983): https://doi.org/10.1207/s15516709cog0702_3
+- Flavell, metacognitive monitoring (1979): https://doi.org/10.1037/0003-066X.34.10.906
+- Butler and Winne, feedback and self-regulated learning (1995): https://doi.org/10.3102/00346543065003245
+- Sweller, cognitive load (1988): https://doi.org/10.1016/0364-0213(88)90023-7
+- Wood, Bruner, and Ross, tutoring/scaffolding (1976): https://doi.org/10.1111/j.1469-7610.1976.tb00381.x
+- Kapur, productive failure (2008): https://doi.org/10.1080/07370000802212669
 - E-Gotsky ZPD adaptive sequencing (2019): https://arxiv.org/abs/1904.12268
 - Smolen, Zhang, and Byrne, spaced learning mechanisms (2016): https://arxiv.org/abs/1606.08370
 - DAS3H skill-aware learning and forgetting (2019): https://arxiv.org/abs/1905.06873

@@ -29,6 +29,22 @@ The system has two supported entry points:
 Both entry points use the same learning engine: diagnose, scaffold, require
 learner production, assess, update memory, and choose the next step.
 
+## Feynman Learning Contract
+
+Feynman is used here as a system test for understanding, not as a loose
+inspiration. The tutor should keep asking until the learner can:
+
+1. Explain the idea in plain language.
+2. Name the mechanism, not only the label.
+3. Give an example and a non-example.
+4. Identify the common trap or misconception.
+5. Transfer the idea to a new case.
+6. Say what evidence would prove the explanation wrong.
+
+This contract is grounded in Feynman's emphasis on mechanism, plain
+explanation, and not fooling oneself, then implemented through teach-back,
+retrieval, contradiction repair, calibration, and transfer.
+
 ## Active-Construction Architecture
 
 The tutor must make the learner construct knowledge, not passively ingest
@@ -43,6 +59,7 @@ answers. This is the system's learning-science contract.
 | Cognitive apprenticeship with adaptive fading | Show expert reasoning for novices, then remove support as mastery rises. | Move from worked example to completion problem to independent transfer. | Whiteboard/worked-example artifacts exist; BKT/FSRS-driven fading is TODO. |
 | Metacognitive calibration | Ask for confidence before checks, then compare prediction with actual performance. | Notice overconfidence or underconfidence. | Profile confidence exists; explicit prediction-vs-result calibration is TODO. |
 | Concept mapping and criss-cross transfer | For complex topics, revisit one concept across multiple cases and lenses. | Identify what stays invariant and what changes by case. | Transfer challenges and whiteboard artifacts exist; learner-generated concept maps and multi-case mode are TODO. |
+| Implicit contradiction repair | When a learner states something that conflicts with stronger prior knowledge, pause practice and force self-correction. | Rewrite the claim, name the cue, and retest the corrected relation. | Implemented for faster/slower comparison conflicts; broader semantic contradiction checks are TODO. |
 
 Default priority order:
 

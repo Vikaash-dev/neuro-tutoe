@@ -190,6 +190,11 @@ The AI-tutor paper spine and implementation audit lives in
 reference ideas, devised app systems, exact local implementation files, and
 remaining research-backed TODOs.
 
+The expanded Feynman and learning-science source map lives in
+`docs/learning-science-source-map.md`. It covers Feynman principles, retrieval,
+spacing, mistakes, metacognition, transfer, cognitive load, scaffolding, and
+AI-tutor safety papers.
+
 The tutor-system design lives in `docs/tutor-system-architecture.md`. It
 explains how NeuroTutor works as a learning system: learner model, tutor policy,
 teach-back loop, quiz loop, knowledge/evidence model, memory, safety, and
