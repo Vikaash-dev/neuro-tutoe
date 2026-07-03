@@ -38,31 +38,41 @@ High-level method:
 8. Give teachers inspectable evidence clusters and approve/edit control for
    classroom remediation.
 
+## Self-Iteration Verdict
+
+The baseline idea is correct, but the pitch should avoid sounding like a
+technical feature checklist. For judges, the clearest angle is: students
+already have answer-generating AI; the missing product is an evidence-first
+tutor that catches hidden misconceptions, forces self-correction, and gives
+teachers usable review signals.
+
 ## Form-Ready Answers
 
 ### 12. Problem Within The Theme
 
-Students use AI to get answers but still miss the skill, metacognition, and
-self-correction a human tutor builds. Teachers cannot diagnose every notebook,
-misconception, confidence gap, and transfer failure, so weak understanding
-becomes hidden dependency.
+Students increasingly use AI to finish homework, but many still cannot explain,
+remember, or transfer what they learned. Teachers in large classes cannot
+diagnose every notebook, misconception, confidence gap, and silent dependency
+before it becomes a bigger learning failure.
 
 ### 13. Solution In Detail
 
-Notebook Saathi is a local-first AI tutor whose goal is to make learners
-independent thinkers, not answer copiers. It uses notebook evidence, uploaded
-notes, a learner model, skill graph, RAG/citations, Socratic hints, Feynman
-teach-back, misconception repair, confidence calibration, spaced recall, and
-transfer tasks. Teachers review clusters and approve remediation.
+Notebook Saathi is a local-first AI tutor that turns real student work into
+guided practice. It studies notebook answers and uploaded notes, finds
+misconceptions, links new ideas to prior knowledge, chooses the right
+Goldilocks step, gives Socratic hints, asks Feynman teach-backs, checks
+confidence, schedules recall, and creates transfer tasks. Instead of giving
+final answers, it helps students think, retry, self-correct, remember, and
+apply. Teachers review clusters and approve remediation.
 
 ### 14. Target User
 
-Created for middle-school, high-school, college, and beginner technical learners
-who need one-to-one practice but lack personal tutoring. It also serves
-teachers managing large classes: they get inspectable misconception clusters,
-retry tasks, and progress evidence. Self-learners using local AI get
-privacy-friendly guidance that teaches how to think, check, remember, and
-transfer.
+It is created for students who need personal tutoring but cannot get it every
+day: middle-school, high-school, college, and beginner technical learners,
+especially in large or under-supported classrooms. It also helps teachers who
+need fast, inspectable evidence of common misconceptions and retry progress.
+Self-learners using local AI get private guidance that teaches how to think,
+check, remember, and transfer.
 
 ## Problem
 
