@@ -201,6 +201,11 @@ The expanded Feynman and learning-science source map lives in
 spacing, mistakes, metacognition, transfer, cognitive load, scaffolding, and
 AI-tutor safety papers.
 
+The GLM-5.2 and local clone synthesis lives in
+`docs/glm52-and-local-clone-analysis.md`. It explains how GLM-5.2 should be
+treated as a future model substrate while the local clone projects continue to
+define the tutor control system, learner state, evidence flow, and safety gates.
+
 The tutor-system design lives in `docs/tutor-system-architecture.md`. It
 explains how NeuroTutor works as a learning system: learner model, tutor policy,
 teach-back loop, quiz loop, knowledge/evidence model, memory, safety, and
