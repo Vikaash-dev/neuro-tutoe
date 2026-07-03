@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "rubric": "DEFAULT_TUTOR_RUBRIC in src/tutor-eval.js",
+  "cases": [
+    {
+      "id": "docker-beginner-repair",
+      "conceptId": "docker-containers",
+      "mode": "explainer",
+      "message": "",
+      "profile": {
+        "learningStyle": "visual",
+        "depth": "simple",
+        "strugglingConcepts": ["Docker Containers"],
+        "assessmentHistory": [
+          {
+            "conceptId": "docker-containers",
+            "score": 48,
+            "missingPoints": ["Images are templates and containers are running instances"],
+            "misconceptions": ["Containers are the same as virtual machines"]
+          }
+        ]
+      },
+      "expectedKeyPoints": [
+        "Containers package an app with dependencies",
+        "Images are templates and containers are running instances",
+        "Containers share the host operating system kernel"
+      ],
+      "expectedMisconceptions": ["Containers are the same as virtual machines"],
+      "passScore": 70
+    },
+    {
+      "id": "kubernetes-socratic-check",
+      "conceptId": "kubernetes-deployments",
+      "mode": "socratic",
+      "message": "I think a deployment is just a pod that restarts.",
+      "profile": {
+        "learningStyle": "verbal",
+        "depth": "moderate",
+        "knownConcepts": ["Docker Containers"]
+      },
+      "expectedKeyPoints": [
+        "A deployment manages replica sets and pods",
+        "Desired state tells Kubernetes what should be running",
+        "Rolling updates replace old pods gradually"
+      ],
+      "expectedMisconceptions": ["A deployment is the same thing as a pod"],
+      "passScore": 62
+    },
+    {
+      "id": "photosynthesis-misconception-repair",
+      "conceptId": "photosynthesis",
+      "mode": "explainer",
+      "message": "Plants get most of their energy from soil nutrients.",
+      "profile": {
+        "learningStyle": "visual",
+        "depth": "moderate",
+        "assessmentHistory": [
+          {
+            "conceptId": "photosynthesis",
+            "score": 44,
+            "missingPoints": ["It requires light energy, water, and carbon dioxide"],
+            "misconceptions": ["Plants get their energy from soil"]
+          }
+        ]
+      },
+      "expectedKeyPoints": [
+        "It requires light energy, water, and carbon dioxide",
+        "It produces glucose and oxygen",
+        "Photosynthesis happens mainly in chloroplasts"
+      ],
+      "expectedMisconceptions": ["Plants get their energy from soil"],
+      "passScore": 70
+    },
+    {
+      "id": "cellular-respiration-transfer",
+      "conceptId": "cellular-respiration",
+      "mode": "explainer",
+      "message": "I know glucose is involved, but I do not know where ATP fits.",
+      "profile": {
+        "learningStyle": "reading_writing",
+        "depth": "moderate",
+        "knownConcepts": ["Glucose"],
+        "assessmentHistory": [
+          {
+            "conceptId": "cellular-respiration",
+            "score": 58,
+            "missingPoints": ["ATP stores usable energy for cell work"],
+            "misconceptions": ["Respiration is the same as breathing"]
+          }
+        ]
+      },
+      "expectedKeyPoints": [
+        "Cells break down glucose to release energy",
+        "ATP stores usable energy for cell work",
+        "Mitochondria perform much of aerobic respiration"
+      ],
+      "expectedMisconceptions": ["Respiration is the same as breathing"],
+      "passScore": 68
+    }
+  ]
+}

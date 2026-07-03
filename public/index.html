@@ -1,0 +1,454 @@
+﻿<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NeuroTutor</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#mainContent">Skip to main content</a>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Primary">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">N</div>
+          <div>
+            <h1>NeuroTutor</h1>
+            <p>Adaptive study cockpit</p>
+          </div>
+        </div>
+
+        <nav class="nav-list">
+          <button class="nav-button active" data-view="dashboard" type="button">
+            <span class="nav-icon" aria-hidden="true">D</span><span>Dashboard</span>
+          </button>
+          <button class="nav-button" data-view="plan" type="button">
+            <span class="nav-icon" aria-hidden="true">P</span><span>Plan</span>
+          </button>
+          <button class="nav-button" data-view="knowledge" type="button">
+            <span class="nav-icon" aria-hidden="true">KB</span><span>Knowledge</span>
+          </button>
+          <button class="nav-button" data-view="tutor" type="button">
+            <span class="nav-icon" aria-hidden="true">T</span><span>Tutor</span>
+          </button>          <button class="nav-button" data-view="notebook" type="button">
+            <span class="nav-icon" aria-hidden="true">N</span><span>Notebook Saathi</span>
+          </button>
+          <button class="nav-button" data-view="teachback" type="button">
+            <span class="nav-icon" aria-hidden="true">R</span><span>Teach-back</span>
+          </button>
+          <button class="nav-button" data-view="quiz" type="button">
+            <span class="nav-icon" aria-hidden="true">Q</span><span>Recall</span>
+          </button>
+          <button class="nav-button" data-view="graph" type="button">
+            <span class="nav-icon" aria-hidden="true">G</span><span>Graph</span>
+          </button>
+          <button class="nav-button" data-view="progress" type="button">
+            <span class="nav-icon" aria-hidden="true">M</span><span>Progress</span>
+          </button>
+        </nav>
+
+        <div class="profile-panel">
+          <label>
+            Style
+            <select id="learningStyle">
+              <option value="visual">Visual</option>
+              <option value="verbal">Verbal</option>
+              <option value="kinesthetic">Active</option>
+              <option value="reading_writing">Reading</option>
+            </select>
+          </label>
+          <label>
+            Depth
+            <select id="depth">
+              <option value="simple">Simple</option>
+              <option value="moderate">Moderate</option>
+              <option value="detailed">Detailed</option>
+              <option value="expert">Expert</option>
+            </select>
+          </label>
+          <label>
+            Tone
+            <select id="tone">
+              <option value="encouraging">Encouraging</option>
+              <option value="neutral">Neutral</option>
+              <option value="formal">Formal</option>
+              <option value="socratic">Socratic</option>
+            </select>
+          </label>
+          <div id="profileInsightList" class="profile-insights" aria-label="Learner model"></div>
+        </div>
+      </aside>
+
+      <main id="mainContent" class="main" tabindex="-1">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Current concept</p>
+            <label class="sr-only" for="conceptSelect">Current concept</label>
+            <select id="conceptSelect" class="concept-select"></select>
+          </div>
+          <form id="customTopicForm" class="custom-topic">
+            <label class="sr-only" for="customTopicInput">Add a custom topic</label>
+            <input id="customTopicInput" type="text" placeholder="Add any topic" />
+            <button class="icon-button" type="submit" title="Add topic" aria-label="Add topic">+</button>
+          </form>
+        </header>
+
+        <section class="view active" id="dashboardView">
+          <div class="dashboard-grid">
+            <section class="metric-strip" aria-label="Learning metrics">
+              <article class="metric-card">
+                <span>Retention</span>
+                <strong id="dashRetention">0%</strong>
+                <small id="dashReviewDate">Review now</small>
+              </article>
+              <article class="metric-card">
+                <span>Mastery</span>
+                <strong id="dashMastery">Novice</strong>
+                <small id="dashMemoryType">Short term</small>
+              </article>
+              <article class="metric-card">
+                <span>Reviews</span>
+                <strong id="dashReviews">0</strong>
+                <small id="dashAccuracy">0% accuracy</small>
+              </article>
+              <article class="metric-card">
+                <span>LLM</span>
+                <strong id="dashLlmStatus">Checking</strong>
+                <small id="dashLlmDetail">LM Studio health</small>
+              </article>
+            </section>
+
+            <section class="work-surface smart-resume">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Smart resume</p>
+                  <h2 id="resumeHeadline">Pick up where you left off</h2>
+                </div>
+                <button id="resumeRefreshButton" class="ghost-button" type="button">Refresh</button>
+              </div>
+              <div id="smartResumePanel" class="smart-resume-panel"></div>
+            </section>
+
+            <section class="work-surface current-lesson">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Learning loop</p>
+                  <h2 id="dashConceptName">Docker Containers</h2>
+                </div>
+                <button class="primary-button" data-view="tutor" type="button">Continue</button>
+              </div>
+              <p id="dashConceptDescription" class="body-copy"></p>
+              <div class="concept-columns">
+                <div>
+                  <h3>Key points</h3>
+                  <ul id="dashKeyPoints"></ul>
+                </div>
+                <div>
+                  <h3>Traps</h3>
+                  <ul id="dashMisconceptions"></ul>
+                </div>
+              </div>
+            </section>
+
+            <section class="work-surface next-actions">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Today</p>
+                  <h2>Next best action</h2>
+                </div>
+              </div>
+              <div id="nextActionList" class="action-list"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="planView">
+          <div class="plan-grid">
+            <section class="work-surface">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Goal-oriented ITS</p>
+                  <h2>Study plan</h2>
+                </div>
+              </div>
+              <form id="goalForm" class="goal-form">
+                <label class="sr-only" for="learningGoalInput">Learning goal</label>
+                <input id="learningGoalInput" type="text" placeholder="Example: master Docker deployments for DevOps interviews" />
+                <button class="primary-button" type="submit">Update goal</button>
+              </form>
+              <div id="learningPath" class="learning-path"></div>
+              <div class="course-outline-block">
+                <div class="section-heading compact-heading">
+                  <div>
+                    <p class="eyebrow">Course outline</p>
+                    <h2 id="courseOutlineTitle">Module path</h2>
+                  </div>
+                  <button id="refreshCourseOutlineButton" class="ghost-button compact-button" type="button">Refresh</button>
+                </div>
+                <div id="courseOutlineMount" class="course-outline-mount"></div>
+              </div>
+              <div class="lesson-script-block">
+                <div class="section-heading compact-heading">
+                  <div>
+                    <p class="eyebrow">Lesson script</p>
+                    <h2 id="lessonScriptTitle">Guided session</h2>
+                  </div>
+                  <div class="inline-actions">
+                    <button id="refreshLessonScriptButton" class="ghost-button compact-button" type="button">Refresh</button>
+                    <button id="generateLessonScriptButton" class="primary-button compact-button" type="button">Save script</button>
+                  </div>
+                </div>
+                <div id="lessonScriptMount" class="lesson-script-mount"></div>
+              </div>
+            </section>
+
+            <aside class="plan-side">
+              <section class="work-surface">
+                <p class="eyebrow">Skill gap identifier</p>
+                <div id="skillGaps" class="gap-list"></div>
+              </section>
+              <section class="work-surface">
+                <p class="eyebrow">Weak areas</p>
+                <div id="weakAreas" class="gap-list"></div>
+              </section>
+              <section class="work-surface">
+                <p class="eyebrow">Resources</p>
+                <div id="resourceList" class="gap-list"></div>
+              </section>
+            </aside>
+          </div>
+        </section>
+
+        <section class="view" id="knowledgeView">
+          <div class="knowledge-grid">
+            <section class="work-surface">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">RAG pipeline</p>
+                  <h2>Knowledge base</h2>
+                </div>
+                <button id="refreshKbButton" class="ghost-button" type="button">Refresh</button>
+              </div>
+              <section class="metric-strip kb-metrics" aria-label="Knowledge base metrics">
+                <article class="metric-card">
+                  <span>Documents</span>
+                  <strong id="kbDocCount">0</strong>
+                  <small>concept cards plus your notes</small>
+                </article>
+                <article class="metric-card">
+                  <span>Chunks</span>
+                  <strong id="kbChunkCount">0</strong>
+                  <small id="kbChunkShape">chunking inactive</small>
+                </article>
+                <article class="metric-card">
+                  <span>Avg size</span>
+                  <strong id="kbAvgTokens">0</strong>
+                  <small>tokens per chunk</small>
+                </article>
+              </section>
+              <div id="kbDocuments" class="document-list"></div>
+              <div id="kbChunkPreview" class="chunk-preview"></div>
+            </section>
+
+            <section class="work-surface">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Add source material</p>
+                  <h2>Paste notes or docs</h2>
+                </div>
+              </div>
+              <form id="kbDocumentForm" class="kb-form">
+                <label class="sr-only" for="kbTitleInput">Knowledge document title</label>
+                <input id="kbTitleInput" type="text" placeholder="Title, e.g. Docker networking notes" />
+                <label class="sr-only" for="kbSourceInput">Knowledge document source</label>
+                <input id="kbSourceInput" type="text" placeholder="Source, e.g. class notes, docs page, PDF chapter" />
+                <select id="kbConceptSelect" aria-label="Attach to concept"></select>
+                <label class="file-import">
+                  Import file
+                  <input id="kbFileInput" type="file" accept=".txt,.md,.markdown,.json,text/plain,text/markdown,application/json" />
+                </label>
+                <p id="kbFileStatus" class="body-copy" role="status"></p>
+                <label class="sr-only" for="kbTextInput">Knowledge document text</label>
+                <textarea id="kbTextInput" class="large-input kb-textarea" placeholder="Paste the learning material here. The app will chunk it, index it, and retrieve only relevant pieces for the tutor."></textarea>
+                <button class="primary-button" type="submit">Add to knowledge base</button>
+                <p id="kbFormStatus" class="body-copy" role="status"></p>
+              </form>
+            </section>
+
+            <section class="work-surface">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Retrieval preview</p>
+                  <h2>Search chunks</h2>
+                </div>
+              </div>
+              <form id="kbSearchForm" class="goal-form">
+                <label class="sr-only" for="kbSearchInput">Search the knowledge base</label>
+                <input id="kbSearchInput" type="text" placeholder="Search the knowledge base" />
+                <button class="primary-button" type="submit">Search</button>
+              </form>
+              <div id="kbSearchResults" class="retrieval-results"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view tutor-layout" id="tutorView">
+          <section class="work-surface chat-panel">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Tutor mode</p>
+                <h2>Feynman conversation</h2>
+              </div>
+              <div class="segmented-control" id="modeControl">
+                <button class="active" data-mode="explainer" type="button">Explain</button>
+                <button data-mode="socratic" type="button">Socratic</button>
+                <button data-mode="student" type="button">Student</button>
+                <button data-mode="duck" type="button">Duck</button>
+              </div>
+            </div>
+            <div id="chatMessages" class="chat-messages" aria-live="polite"></div>
+            <form id="chatForm" class="chat-input-row">
+              <label class="sr-only" for="chatInput">Tutor message</label>
+              <textarea id="chatInput" rows="2" placeholder="Ask a question or explain what you understand"></textarea>
+              <button class="send-button" type="submit" title="Send" aria-label="Send">&gt;</button>
+            </form>
+          </section>
+
+          <aside class="work-surface coach-panel">
+            <p class="eyebrow">Coach notes</p>
+            <h2>Study moves</h2>
+            <div id="coachNotes" class="coach-notes"></div>
+            <div id="whiteboardNotes" class="whiteboard-notes"></div>
+          </aside>
+        </section>
+
+
+        <section class="view notebook-layout" id="notebookView">
+          <section class="work-surface notebook-main">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Samsung Solve for Tomorrow</p>
+                <h2>Notebook Saathi</h2>
+              </div>
+              <div class="inline-actions">
+                <button id="notebookLoadDemo" class="ghost-button compact-button" type="button">Demo data</button>
+                <button id="notebookAnalyzeButton" class="primary-button compact-button" type="button">Analyze</button>
+              </div>
+            </div>
+
+            <section class="metric-strip notebook-metrics" aria-label="Notebook Saathi metrics">
+              <article class="metric-card">
+                <span>Before</span>
+                <strong id="notebookInitialScore">0/0</strong>
+                <small id="notebookInitialPercent">0% correct</small>
+              </article>
+              <article class="metric-card">
+                <span>After retry</span>
+                <strong id="notebookRetryScore">0/0</strong>
+                <small id="notebookRetryPercent">0% correct</small>
+              </article>
+              <article class="metric-card">
+                <span>Lift</span>
+                <strong id="notebookLift">0 pts</strong>
+                <small id="notebookAffected">0 students grouped</small>
+              </article>
+            </section>
+
+            <div class="notebook-question-strip">
+              <span id="notebookQuestion">Solve: 1/2 + 1/3</span>
+              <span id="notebookRetryQuestion">Retry: 1/4 + 1/3</span>
+            </div>
+
+            <label class="sr-only" for="notebookSaathiInput">Notebook answer rows</label>
+            <textarea id="notebookSaathiInput" class="large-input notebook-textarea" spellcheck="false"></textarea>
+            <div id="notebookSaathiStatus" class="body-copy" role="status"></div>
+            <div id="notebookSaathiResults" class="notebook-results"></div>
+          </section>
+
+          <aside class="work-surface notebook-side">
+            <p class="eyebrow">Teacher gate</p>
+            <h2>Submission shape</h2>
+            <div id="notebookReadinessList" class="gap-list"></div>
+            <div class="notebook-governance">
+              <span class="status-chip good">Teacher supervised</span>
+              <span class="status-chip good">No personal identifiers</span>
+              <span class="status-chip warn">Prototype confidence only</span>
+            </div>
+          </aside>
+        </section>        <section class="view split-layout" id="teachbackView">
+          <section class="work-surface">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Feynman check</p>
+                <h2>Teach it simply</h2>
+              </div>
+              <button id="analyzeTeachBack" class="primary-button" type="button">Analyze</button>
+            </div>
+            <label class="sr-only" for="teachBackInput">Teach-back explanation</label>
+            <textarea id="teachBackInput" class="large-input recall-friction-text" placeholder="Explain the current concept as if teaching a bright beginner."></textarea>
+          </section>
+          <section class="work-surface">
+            <p class="eyebrow">Analysis</p>
+            <div id="teachBackResults" class="analysis-results"></div>
+          </section>
+        </section>
+
+        <section class="view split-layout" id="quizView">
+          <section class="work-surface">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Active recall</p>
+                <h2>Adaptive quiz</h2>
+              </div>
+              <button id="newQuizButton" class="primary-button" type="button">New quiz</button>
+            </div>
+            <div id="quizMount" class="quiz-mount"></div>
+          </section>
+          <section class="work-surface">
+            <p class="eyebrow">Schedule</p>
+            <div id="schedulePreview"></div>
+          </section>
+        </section>
+
+        <section class="view" id="graphView">
+          <section class="work-surface graph-surface">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Knowledge map</p>
+                <h2>Concept relationships</h2>
+              </div>
+            </div>
+            <svg id="knowledgeGraph" viewBox="0 0 900 560" role="img" aria-label="Knowledge graph"></svg>
+          </section>
+        </section>
+
+        <section class="view" id="progressView">
+          <section class="work-surface">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Memory state</p>
+                <h2>Mastery tracker</h2>
+              </div>
+              <button id="resetProgress" class="ghost-button" type="button">Reset progress</button>
+            </div>
+            <div id="progressList" class="progress-list"></div>
+          </section>
+          <section class="work-surface">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Citation notebook</p>
+                <h2>Source history</h2>
+              </div>
+              <button id="refreshCitationNotebookButton" class="ghost-button" type="button">Refresh</button>
+            </div>
+            <div id="citationNotebookMount" class="citation-notebook"></div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
+
+
