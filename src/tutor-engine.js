@@ -156,6 +156,90 @@ export function analyzeTeachBack(payload = {}) {
   };
 }
 
+export function assessTransferAttempt(payload = {}) {
+  const concept = resolveConcept(payload.concept || payload.conceptId || payload.topic);
+  const answer = String(payload.answer || payload.response || payload.explanation || "").trim();
+  const targetExample = String(payload.targetExample || payload.target || concept.realWorldApplications[0] || "").trim();
+  const sourceExample = String(payload.sourceExample || payload.source || "").trim();
+  const answerText = answer.toLowerCase();
+  const answerWords = new Set(keywordsFrom(answer));
+  const targetWords = keywordsFrom(targetExample);
+  const targetHits = targetWords.filter((word) => answerWords.has(word)).slice(0, 5);
+  const sourceWords = keywordsFrom(sourceExample);
+  const sourceHits = sourceWords.filter((word) => answerWords.has(word)).slice(0, 5);
+  const pointScores = concept.keyPoints.map((point) => ({
+    point,
+    score: Math.min(1, coverageForPoint(point, answerWords, answerText)),
+  }));
+  const invariantChecks = pointScores.filter((item) => item.score >= 0.34).map((item) => item.point);
+  const changedChecks = [];
+  const hasInvariantLanguage = /\binvariant\b|\bstill\b|\bsame\b|\bunchanged\b|\bremains?\b|\bcore\b/.test(answerText);
+  const hasChangeLanguage = /\bchange[sd]?\b|\bdifferent\b|\bnew\b|\bcontext\b|\benvironment\b|\bwhereas\b|\bwhile\b|\bbut\b/.test(
+    answerText,
+  );
+
+  if (hasInvariantLanguage && invariantChecks.length > 0) {
+    changedChecks.push("Named what stays invariant across contexts");
+  }
+  if (hasChangeLanguage) {
+    changedChecks.push("Named what changes in the new context");
+  }
+  if (targetHits.length > 0) {
+    changedChecks.push(`Used target-context evidence: ${targetHits.slice(0, 3).join(", ")}`);
+  }
+
+  const misconceptions = concept.commonMisconceptions.filter((misconception) => {
+    const lowerMisconception = misconception.toLowerCase();
+    const words = keywordsFrom(misconception);
+    const hits = words.filter((word) => answerWords.has(word)).length;
+    const exactMatch = answerText.includes(lowerMisconception);
+    const strongOverlap = hits >= Math.min(4, words.length);
+    const negated =
+      /\bnot\b|\bnever\b|\bno\b|\bavoid\b|\bfalse\b|\bwrong\b|\bmisconception\b|\btrap\b/.test(answerText) &&
+      words.some((word) => answerText.includes(word));
+    return (exactMatch || strongOverlap) && !negated;
+  });
+  const missingPoints = pointScores.filter((item) => item.score < 0.34).map((item) => item.point).slice(0, 4);
+  const coverage = pointScores.length
+    ? pointScores.reduce((sum, item) => sum + item.score, 0) / pointScores.length
+    : 0;
+  const sourceTargetBridge = sourceHits.length > 0 && targetHits.length > 0 ? 10 : targetHits.length > 0 ? 7 : 0;
+  const score = clampScore(
+    Math.round(
+      coverage * 40 +
+        (hasInvariantLanguage ? 20 : 0) +
+        (hasChangeLanguage ? 20 : 0) +
+        sourceTargetBridge +
+        Math.min(16, invariantChecks.length * 8) -
+        misconceptions.length * 15,
+    ),
+    0,
+  );
+  const transferLevel =
+    score >= 75 && hasChangeLanguage && invariantChecks.length > 0
+      ? "far"
+      : score >= 55 && invariantChecks.length > 0
+        ? "near"
+        : "attempted";
+
+  return {
+    conceptId: concept.id,
+    conceptName: concept.name,
+    score,
+    transferLevel,
+    sourceExample,
+    targetExample,
+    invariantChecks,
+    changedChecks,
+    missingPoints,
+    misconceptions,
+    nextPrompt:
+      transferLevel === "far"
+        ? `Good transfer. Now solve a farther case and explain what changes about ${concept.name}.`
+        : `Try again: name what stays the same, what changes, and which misconception you are avoiding.`,
+  };
+}
+
 function clampScore(value, fallback = 0) {
   const number = Number(value);
   if (!Number.isFinite(number)) return fallback;
@@ -205,6 +289,34 @@ function assessmentList(values = []) {
     : [];
 }
 
+export function buildCalibrationInsight(payload = {}) {
+  const predictedConfidence = clampScore(payload.predictedConfidence ?? payload.confidence ?? 50, 50);
+  const actualScore = clampScore(payload.actualScore ?? payload.score ?? payload.accuracy ?? 0, 0);
+  const gap = predictedConfidence - actualScore;
+  const absGap = Math.abs(gap);
+  let label = "developing";
+  let feedback = "Your confidence and result are close enough to keep practicing with evidence.";
+
+  if (absGap <= 10) {
+    label = "calibrated";
+    feedback = "Your confidence matched the evidence. Keep using the same self-check before answering.";
+  } else if (gap >= 20) {
+    label = "overconfident";
+    feedback = "Slow down and ask what evidence supports each step before trusting the answer.";
+  } else if (gap <= -20) {
+    label = "underconfident";
+    feedback = "You knew more than you predicted. Name the strategy that worked so you can trust it next time.";
+  }
+
+  return {
+    predictedConfidence,
+    actualScore,
+    gap,
+    label,
+    feedback,
+  };
+}
+
 function conceptIsInList(values, concept) {
   const keys = conceptKeys(concept);
   return normalizeStringList(values).some((value) => keys.has(value.toLowerCase()));
@@ -240,6 +352,13 @@ export function updateLearnerProfileAfterAssessment(profile = {}, payload = {}) 
   let confidenceDelta = score >= 70 ? 3 : -3;
   let motivationDelta = 1;
   let status = "developing";
+  const calibration =
+    payload.predictedConfidence === undefined && payload.confidence === undefined
+      ? null
+      : buildCalibrationInsight({
+          predictedConfidence: payload.predictedConfidence ?? payload.confidence,
+          actualScore: score,
+        });
 
   if (isStrong) {
     nextKnownConcepts = addConceptToFront(knownConcepts, concept, 16);
@@ -253,6 +372,13 @@ export function updateLearnerProfileAfterAssessment(profile = {}, payload = {}) 
     status = "needs_review";
   }
 
+  if (calibration?.label === "overconfident") {
+    confidenceDelta -= calibration.gap >= 35 ? 6 : 3;
+    motivationDelta -= 1;
+  } else if (calibration?.label === "underconfident" && isStrong) {
+    confidenceDelta += 2;
+  }
+
   const assessment = {
     conceptId: concept.id,
     conceptName: concept.name,
@@ -263,6 +389,7 @@ export function updateLearnerProfileAfterAssessment(profile = {}, payload = {}) 
     misconceptions,
     createdAt,
   };
+  if (calibration) assessment.calibration = calibration;
 
   return {
     ...profile,

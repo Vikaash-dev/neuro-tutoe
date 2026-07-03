@@ -27,6 +27,13 @@ test("sanitizeLearnerState preserves restorable learner profile, memory, and mes
             score: 82,
             source: "teach-back",
             missingPoints: ["layer reuse"],
+            calibration: {
+              predictedConfidence: 95,
+              actualScore: 82,
+              gap: 13,
+              label: "developing",
+              feedback: "Close, but check evidence before deciding.",
+            },
           },
         ],
       },
@@ -71,6 +78,9 @@ test("sanitizeLearnerState preserves restorable learner profile, memory, and mes
   assert.equal(clean.profile.confidenceLevel, 100);
   assert.equal(clean.profile.motivationLevel, 0);
   assert.deepEqual(clean.profile.knownConcepts, ["images", "volumes"]);
+  assert.equal(clean.profile.assessmentHistory[0].calibration.predictedConfidence, 95);
+  assert.equal(clean.profile.assessmentHistory[0].calibration.actualScore, 82);
+  assert.equal(clean.profile.assessmentHistory[0].calibration.label, "developing");
   assert.equal(clean.memory["docker-containers"].memoryType, "long_term");
   assert.equal(clean.memory["docker-containers"].masteryLevel, "proficient");
   assert.equal(clean.messages["docker-containers"].length, 2);

@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { getConceptById } from "../src/concepts.js";
 import {
   analyzeTeachBack,
+  assessTransferAttempt,
   buildTutorSessionState,
+  buildCalibrationInsight,
   createInitialMemory,
   generateLearningPath,
   generateQuiz,
@@ -277,6 +279,54 @@ test("quiz generation targets recent missing points from learner history", () =>
 
   assert.ok(questions.some((question) => question.correctAnswer === "Volumes persist data outside the container lifecycle"));
   assert.ok(questions.some((question) => question.relatedMisconceptions.includes("Deleting a container always deletes every piece of data")));
+});
+
+test("transfer assessment rewards invariant reasoning across a new context", () => {
+  const result = assessTransferAttempt({
+    conceptId: "docker-containers",
+    sourceExample: "Run a web API in a container on a laptop.",
+    targetExample: "Move the same API to a cloud worker that needs persistent logs.",
+    answer:
+      "The invariant is that the image is still the template and the container is the running instance. What changes is the environment: in cloud deployment I must attach a volume for persistent logs because deleting a container should not delete the data.",
+  });
+
+  assert.equal(result.conceptId, "docker-containers");
+  assert.equal(result.transferLevel, "far");
+  assert.ok(result.score >= 80);
+  assert.ok(result.invariantChecks.length >= 1);
+  assert.ok(result.changedChecks.length >= 1);
+  assert.deepEqual(result.misconceptions, []);
+});
+
+test("metacognitive calibration labels overconfidence and stores it in assessment history", () => {
+  const calibration = buildCalibrationInsight({ predictedConfidence: 95, actualScore: 42 });
+
+  assert.equal(calibration.label, "overconfident");
+  assert.equal(calibration.gap, 53);
+  assert.match(calibration.feedback, /slow down|evidence/i);
+
+  const updated = updateLearnerProfileAfterAssessment(
+    {
+      knownConcepts: ["Docker Containers"],
+      strugglingConcepts: [],
+      confidenceLevel: 88,
+      motivationLevel: 70,
+    },
+    {
+      conceptId: "docker-containers",
+      score: 42,
+      predictedConfidence: 95,
+      missingPoints: ["Volumes persist data outside the container lifecycle"],
+      source: "transfer",
+      createdAt: 789,
+    },
+  );
+
+  assert.equal(updated.assessmentHistory[0].source, "transfer");
+  assert.equal(updated.assessmentHistory[0].calibration.label, "overconfident");
+  assert.equal(updated.assessmentHistory[0].calibration.gap, 53);
+  assert.ok(updated.confidenceLevel < 80);
+  assert.deepEqual(updated.strugglingConcepts, ["Docker Containers"]);
 });
 
 test("whiteboard artifact includes notes and graph edges", () => {

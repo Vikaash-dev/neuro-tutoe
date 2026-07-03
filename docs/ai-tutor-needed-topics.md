@@ -27,8 +27,8 @@ remember, calibrate, and transfer better than direct answer generation?
 | Cognitive load | Too much complexity blocks learning. | Chunked steps, one misconception at a time, compact visual artifacts. | Partial. |
 | Self-explanation / Feynman teach-back | Generating explanations reveals missing links. | Teach-back scoring, claim extraction, why/how repair. | Implemented baseline; claim-level follow-up needed. |
 | Learning by teaching | Teaching a tutor/peer creates accountability and deeper processing. | "Teach the tutor" mode with guided checklist and feedback. | Partial: duck/student modes exist; rubric-guided version needed. |
-| Metacognitive calibration | Learners misjudge what they know, especially when AI helps too much. | Confidence prediction before feedback; prediction-vs-score gap. | Needed. |
-| Transfer | Real skill means applying knowledge in new contexts. | Near-transfer, far-transfer, and "what changed / what stayed invariant" prompts. | Partial: transfer prompts exist; generator and scoring needed. |
+| Metacognitive calibration | Learners misjudge what they know, especially when AI helps too much. | Confidence prediction before feedback; prediction-vs-score gap. | Implemented baseline in tutor engine and persisted assessment history; UI flow still needed. |
+| Transfer | Real skill means applying knowledge in new contexts. | Near-transfer, far-transfer, and "what changed / what stayed invariant" prompts. | Partial: transfer prompts and deterministic transfer scoring exist; UI/eval integration needed. |
 | Misconception diagnosis | A tutor must know why an answer is wrong. | Misconception library, cluster detector, repair tasks. | Partial: core concepts and Notebook Saathi fractions exist. |
 | Learner modeling | Personalization requires dynamic memory beyond chat history. | Per-skill mastery, attempts, misconceptions, confidence, review due dates. | Partial. |
 | Knowledge tracing | ITS systems need estimates of mastery and forgetting. | Simple BKT-like fields first; upgrade later if outcome data exists. | Needed. |

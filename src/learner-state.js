@@ -46,7 +46,18 @@ function cleanStringList(values = [], limit = 16) {
 }
 
 function cleanAssessment(item = {}) {
-  return {
+  const calibration =
+    item.calibration && typeof item.calibration === "object"
+      ? {
+          predictedConfidence: clamp(item.calibration.predictedConfidence, 50),
+          actualScore: clamp(item.calibration.actualScore, clamp(item.score, 0)),
+          gap: Math.round(finiteNumber(item.calibration.gap, 0)),
+          label: compactText(item.calibration.label || "", 40),
+          feedback: compactText(item.calibration.feedback || "", 220),
+        }
+      : null;
+
+  const assessment = {
     conceptId: String(item.conceptId || "").trim(),
     conceptName: compactText(item.conceptName || "", 120),
     score: clamp(item.score, 0),
@@ -56,6 +67,8 @@ function cleanAssessment(item = {}) {
     misconceptions: cleanStringList(item.misconceptions, 6),
     createdAt: finiteNumber(item.createdAt, Date.now()),
   };
+  if (calibration) assessment.calibration = calibration;
+  return assessment;
 }
 
 function cleanProfile(profile = {}) {
